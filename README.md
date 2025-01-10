@@ -3,7 +3,7 @@ Muttley is a sleek and user-friendly file manager designed for local and server-
 Built with Python and Flask on the backend and an intuitive HTML, CSS, and JavaScript frontend,
 Muttley provides a robust solution for navigating, uploading, downloading, and managing files seamlessly.
 
-![logo](./images/interface.jpg)
+![logo](./images/interface.png)
 
 ## 🔔 Features
 - **Dynamic File Navigation**: Effortlessly navigate through directories with a clean and responsive UI.
