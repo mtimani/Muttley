@@ -31,7 +31,7 @@
 ### Using Docker (Recommended for production)
 ```bash
 mkdir data
-wget -c https://gitlab.timanimario.com/various/new_updog/-/raw/main/docker-compose.yml?ref_type=heads&inline=false
+wget -c https://raw.githubusercontent.com/mtimani/Muttley/refs/heads/main/docker-compose.yml
 docker compose up -d
 ```
 
