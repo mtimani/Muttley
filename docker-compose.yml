@@ -1,0 +1,14 @@
+version: "3.8"
+
+services:
+  muttley:
+    image: mtimani/muttley
+    container_name: muttley
+    restart: always
+    ports:
+      - "80:5000"
+    volumes:
+      - ./data:/data
+    environment:
+      - FLASK_ENV=production
+    entrypoint: ["/bin/bash", "/server/run.sh"]
