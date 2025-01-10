@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Muttley - File Manager</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
+</head>
+<body>
+    <a href="#" onclick="navigateToRoot()" class="header-link">
+        <header>
+            <div class="header-container">
+                <img src="/static/logo.webp" alt="Logo" class="header-logo">
+                <h1 class="header-title">Muttley - File Manager</h1>
+            </div>
+        </header>
+    </a>    
+    
+    <main>
+        <div>
+            <button class="button go-back" onclick="goBack()"><</button>
+            <button class="button" onclick="openUploadPopup()">Upload</button>
+            <button class="button" onclick="deleteSelected()">Delete Selected</button>
+            <button class="button" onclick="openCreateDirPopup()">Create Directory</button>           
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th><input type="checkbox" id="selectAllCheckbox" onclick="toggleSelectAll(this)"></th>
+                    <th>Name</th>
+                    <th>Size</th>
+                    <th>Last Modified</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="fileTable"></tbody>
+        </table>
+    </main>
+    <div class="overlay" id="overlay"></div>
+    <div class="popup" id="uploadPopup">
+        <span class="close" onclick="closeUploadPopup()">×</span>
+        <h2>Upload File</h2>
+        <form id="uploadForm">
+            <input type="file" name="file" id="uploadFile" multiple>
+            <input type="hidden" name="target_dir" id="targetDir">
+            <div id="dropZone" ondragover="handleDragOver(event)" ondrop="handleDrop(event)">
+                Drag and drop files here or click "Upload File" to select files.
+            </div>
+            <ul id="fileListPreview"></ul>            
+            <button type="submit">Upload</button>
+        </form>
+    </div>
+    <div class="popup" id="createDirPopup">
+        <span class="close" onclick="closeCreateDirPopup()">×</span>
+        <h2>Create Directory</h2>
+        <form id="createDirForm">
+            <input type="text" name="dirname" id="dirname" placeholder="Directory Name" required>
+            <button type="submit">Create</button>
+        </form>
+    </div>
+    <div class="popup" id="confirmPopup">
+        <span class="close" onclick="closeConfirmPopup()">×</span>
+        <h2>Confirmation</h2>
+        <p id="confirmMessage" style="white-space: pre-wrap;"></p>
+        <div class="popup-buttons">
+            <button id="confirmYesBtn">Yes</button>
+            <button id="confirmNoBtn">No</button>
+        </div>
+    </div>
+    <div class="popup" id="alertPopup">
+        <span class="close" onclick="closeAlertPopup()">×</span>
+        <h2>Information</h2>
+        <p id="alertMessage"></p>
+        <div class="popup-buttons">
+            <button id="alertOkBtn">OK</button>
+        </div>
+    </div>
+    <div class="popup" id="editorPopup">
+        <span class="close" onclick="closeEditorPopup()">×</span>
+        <h2>Edit File</h2>
+        <textarea id="fileEditor" rows="20" style="width: 100%;"></textarea>
+        <div>
+            <button class="button" onclick="saveFile()">Save</button>
+            <button class="button" onclick="closeEditorPopup()">Cancel</button>
+        </div>
+    </div>    
+    
+    <script src="/static/main.js"></script>
+</body>
+</html>
