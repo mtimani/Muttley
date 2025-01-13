@@ -13,5 +13,7 @@ services:
       - AUTH_USERNAME=admin
       - AUTH_PASSWORD=supersecurepassword
     volumes:
+      # Modify ./data by the directory you wish to share between your host and your container 
+      # ./data is where all the data will be stored
       - ./data:/data
     entrypoint: ["/bin/bash", "/server/run.sh"]
