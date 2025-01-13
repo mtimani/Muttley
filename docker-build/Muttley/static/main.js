@@ -428,12 +428,33 @@ async function navigateToRoot() {
     }
 }
 
+document.getElementById("uploadFile").addEventListener("change", (event) => {
+    const files = Array.from(event.target.files);
+
+    files.forEach(file => {
+        // Avoid duplicates
+        if (!queuedFiles.some(queuedFile => queuedFile.name === file.name)) {
+            queuedFiles.push(file);
+        }
+    });
+
+    // Update file list preview
+    updateFileListPreview();
+});
+
 document.getElementById("uploadForm").addEventListener("submit", async (event) => {
     event.preventDefault();
 
-    const formData = new FormData(event.target);
+    const formData = new FormData();
 
-    // Show "Uploading files, please wait..." popup
+    // Add all queued files to FormData
+    queuedFiles.forEach(file => {
+        formData.append("file", file); // Attach files with their filenames
+    });
+
+    // Add the target directory
+    formData.append("target_dir", document.getElementById("targetDir").value);
+
     openAlertPopup("Uploading files, please wait...");
 
     try {
@@ -445,17 +466,15 @@ document.getElementById("uploadForm").addEventListener("submit", async (event) =
             return;
         }
 
-        // Show success message
         openAlertPopup("Files uploaded successfully!");
     } catch (error) {
         console.error("Error during upload:", error);
         openAlertPopup("Unexpected error during upload: " + error.message);
     } finally {
-        closeUploadPopup(); // Close the upload popup
-        fetchFiles(); // Refresh the file list
+        closeUploadPopup();
+        fetchFiles(); // Refresh file list
     }
-}); 
-
+});
 
 function handleDragOver(event) {
     event.preventDefault();
@@ -473,13 +492,20 @@ function handleDrop(event) {
 
     const files = Array.from(event.dataTransfer.files);
 
+    // Append files to the queuedFiles array
     files.forEach(file => {
-        // Avoid duplicates by checking if file.name already exists
         if (!queuedFiles.some(queuedFile => queuedFile.name === file.name)) {
             queuedFiles.push(file);
         }
     });
 
+    // Update the FormData used in the submission
+    const formData = new FormData(document.getElementById("uploadForm"));
+    queuedFiles.forEach(file => {
+        formData.append("file", file);
+    });
+
+    // Update the preview list
     updateFileListPreview();
 }
 
