@@ -46,6 +46,7 @@ python3 file_server.py --root ./data
 cd new_updog/docker-build/Muttley
 mkdir data
 AUTH_USERNAME=admin AUTH_PASSWORD=supersecurepassword python3 file_server.py --root ./data
+```
 
 ## 📖 Why Muttley?
 Whether you’re a developer managing server files or a user looking for a simple local file explorer, Muttley is designed to make file management straightforward, efficient, and enjoyable.
