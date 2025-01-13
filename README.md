@@ -21,6 +21,7 @@ Muttley provides a robust solution for navigating, uploading, downloading, and m
 
 ## 🔎 Usage
 ### Using Docker (Recommended for production)
+> :warning: **Please check the environment variables and the shared volume before launching the `docker compose up -d` command!** 
 ```bash
 mkdir data
 wget -c https://raw.githubusercontent.com/mtimani/Muttley/refs/heads/main/docker-compose.yml
