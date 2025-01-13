@@ -6,7 +6,7 @@ services:
     container_name: muttley
     restart: always
     ports:
-      - "80:5000"
+      - "5000:5000"
     environment:
       - FLASK_ENV=production
       # Not required => Use only if BasicAuth needed
