@@ -7,6 +7,10 @@ services:
     restart: always
     ports:
       - "80:5000"
+    # Not required => Use only if BasicAuth needed
+    environment:
+      - AUTH_USERNAME=admin
+      - AUTH_PASSWORD=supersecurepassword
     volumes:
       - ./data:/data
     environment:
