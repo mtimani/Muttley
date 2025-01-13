@@ -1,5 +1,7 @@
-from flask import Flask, request, jsonify, send_from_directory, render_template, abort, send_file
+from flask import Flask, request, jsonify, send_from_directory, render_template, abort, send_file, Response
 import os
+from functools import wraps
+from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 import argparse
 import logging
@@ -12,8 +14,43 @@ app = Flask(__name__)
 BASE_DIR = None  # Will be set via script arguments
 UPLOAD_METADATA_FILE = None  # To be configured dynamically
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
+# Get credentials from environment variables
+USERNAME = os.getenv("AUTH_USERNAME", None)
+PASSWORD = os.getenv("AUTH_PASSWORD", None)
+
+if USERNAME and PASSWORD:
+    PASSWORD_HASH = generate_password_hash(PASSWORD)
+
+    def check_auth(username, password):
+        """Check if the username and password are correct."""
+        return username == USERNAME and check_password_hash(PASSWORD_HASH, password)
+
+    def authenticate():
+        """Sends a 401 response that enables basic auth."""
+        return Response(
+            "Could not verify your access level for that URL.\n"
+            "You have to log in with proper credentials", 401,
+            {"WWW-Authenticate": "Basic realm='Login Required'"}
+        )
+
+    def requires_auth(f):
+        """Decorator to prompt for authentication."""
+        @wraps(f)
+        def decorated(*args, **kwargs):
+            auth = request.authorization
+            if not auth or not check_auth(auth.username, auth.password):
+                return authenticate()
+            return f(*args, **kwargs)
+        return decorated
+else:
+    print("Authentication is disabled. Running without authentication.")
+
+    def requires_auth(f):
+        """No-op decorator if authentication is disabled."""
+        @wraps(f)
+        def decorated(*args, **kwargs):
+            return f(*args, **kwargs)
+        return decorated
 
 def safe_path(path):
     """Ensure paths stay within the BASE_DIR."""
@@ -23,6 +60,7 @@ def safe_path(path):
     return absolute_path
 
 @app.route("/")
+@requires_auth
 def home():
     """Serve the frontend."""
     return render_template("index.html")
@@ -35,6 +73,7 @@ def format_size(size):
         size /= 1024.0
 
 @app.route("/list", methods=["POST"])
+@requires_auth
 def list_items():
     """List items in the specified directory and handle navigation."""
     current_dir = request.json.get("current_dir", BASE_DIR)
@@ -73,8 +112,8 @@ def list_items():
         print(f"Error: {e}")
         return jsonify({"error": str(e)}), 400
 
-
 @app.route("/upload", methods=["POST"])
+@requires_auth
 def upload_files():
     """
     Upload files to the specified directory or update the content of a text file.
@@ -124,6 +163,7 @@ def upload_files():
 
 
 @app.route("/delete", methods=["POST"])
+@requires_auth
 def delete_items():
     import shutil  # si pas déjà importé
     
@@ -180,6 +220,7 @@ def delete_items():
 
 
 @app.route("/download", methods=["POST"])
+@requires_auth
 def download_file_post():
     """Stream a specific file."""
     try:
@@ -210,6 +251,7 @@ def download_file_post():
         return jsonify({"error": str(e)}), 400  
 
 @app.route("/download_zip", methods=["POST"])
+@requires_auth
 def download_directory_as_zip():
     """
     Create and download a ZIP file of the specified directory.
@@ -251,6 +293,7 @@ def download_directory_as_zip():
 
 
 @app.route("/create_dir", methods=["POST"])
+@requires_auth
 def create_directory():
     """Create a new directory."""
     target_dir = request.json.get("target_dir", BASE_DIR)
@@ -276,6 +319,7 @@ def create_directory():
         return jsonify({"error": str(e)}), 400
 
 @app.route("/config", methods=["GET"])
+@requires_auth
 def get_config():
     """Expose configuration settings to the frontend."""
     return jsonify({"base_dir": BASE_DIR})
