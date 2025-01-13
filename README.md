@@ -11,6 +11,7 @@ Muttley provides a robust solution for navigating, uploading, downloading, and m
 - **Edit On-the-Fly**: Edit text files directly within the app using the built-in editor.
 - **Batch Operations**: Delete multiple files and folders simultaneously, with confirmation prompts for non-empty directories.
 - **Streamlined Design**: A visually appealing layout with an integrated header featuring a clickable logo and title for easy navigation back to the root directory.
+- **Basic Authentication support**: Optional Basic Authentication ensures secure access by requiring a username and password. Easily configurable in the backend, it protects against unauthorized usage while maintaining flexibility for deployments without mandatory login.
 
 ## 📦 Technologies Used
 - **Easy deployment**: Docker and docker-compose.yml
