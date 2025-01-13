@@ -34,12 +34,18 @@ cd new_updog/docker-build/
 pip3 install -r requirements.txt
 ```
 
-#### Usage
+#### Usage (without Basic Authentication)
 ```bash
 cd new_updog/docker-build/Muttley
 mkdir data
 python3 file_server.py --root ./data
 ```
+
+#### Usage (with Basic Authentication)
+```bash
+cd new_updog/docker-build/Muttley
+mkdir data
+AUTH_USERNAME=admin AUTH_PASSWORD=supersecurepassword python3 file_server.py --root ./data
 
 ## 📖 Why Muttley?
 Whether you’re a developer managing server files or a user looking for a simple local file explorer, Muttley is designed to make file management straightforward, efficient, and enjoyable.
