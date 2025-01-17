@@ -1,0 +1,19 @@
+version: "3.8"
+
+services:
+  muttley:
+    image: mtimani/muttley
+    container_name: muttley
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - ENV=PRODUCTION
+      # Not required => Use only if BasicAuth needed
+      - AUTH_USERNAME=admin
+      - AUTH_PASSWORD=supersecurepassword
+    volumes:
+      # Modify ./data by the directory you wish to share between your host and your container 
+      # ./data is where all the data will be stored
+      - ./data:/data
+    entrypoint: ["/bin/bash", "/server/run.sh"]

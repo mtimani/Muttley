@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Muttley - File Manager</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" href="favicon.ico" type="image/x-icon">
+</head>
+<body>
+    <a href="#" onclick="navigateToRoot()" class="header-link">
+        <header>
+            <div class="header-container">
+                <img src="logo.webp" alt="Logo" class="header-logo">
+                <h1 class="header-title">Muttley - File Manager</h1>
+            </div>
+        </header>
+    </a>    
+    
+    <main>
+        <div id="functionnality-container">
+	    <div id="standard-functionnality-container">
+                <button class="button go-back" onclick="goBack()"><</button>
+                <button class="button" onclick="openUploadPopup()">Upload</button>
+                <button class="button" onclick="deleteSelected()">Delete Selected</button>
+                <button class="button" onclick="openCreateDirPopup()">Create Directory</button>           
+	    </div>
+	    <div id="search-functionnality-container">
+		<input type="text" id="searchInput" placeholder="Search..." class="search-bar">
+		<button class="button" onclick="performSearch()">Search</button>
+	    </div>
+	</div>
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th><input type="checkbox" id="selectAllCheckbox" onclick="toggleSelectAll(this)"></th>
+                        <th onclick="sortTable('name')" style="cursor: pointer;">
+                            Name <span id="nameSortArrow">⬍</span>
+                        </th>
+                        <th onclick="sortTable('size')" style="cursor: pointer;">
+                            Size <span id="sizeSortArrow">⬍</span>
+                        </th>
+                        <th onclick="sortTable('last_modified')" style="cursor: pointer;">
+                            Last Modified <span id="last_modifiedSortArrow">⬍</span>
+                        </th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="fileTable"></tbody>
+            </table>
+        </div>
+    </main>
+    <div class="overlay" id="overlay"></div>
+    <div id="uploadPopup" class="popup">
+        <span class="close" onclick="closeUploadPopup()">×</span>
+        <h2>Upload File</h2>
+        <form id="uploadForm">
+            <input type="file" name="file" id="uploadFile" multiple>
+            <input type="hidden" name="target_dir" id="targetDir">
+            <div id="dropZone" ondragover="handleDragOver(event)" ondrop="handleDrop(event)">
+                Drag and drop files here or click "Upload File" to select files.
+            </div>
+            <ul id="fileListPreview"></ul>
+            <progress id="uploadProgressBar" value="0" max="100" style="width: 100%; display: none;"></progress>
+            <button type="submit">Upload</button>
+        </form>
+    </div>    
+    <div class="popup" id="createDirPopup">
+        <span class="close" onclick="closeCreateDirPopup()">×</span>
+        <h2>Create Directory</h2>
+        <form id="createDirForm">
+            <input type="text" name="dirname" id="dirname" placeholder="Directory Name" required>
+            <button type="submit">Create</button>
+        </form>
+    </div>
+    <div class="popup" id="confirmPopup">
+        <span class="close" onclick="closeConfirmPopup()">×</span>
+        <h2>Confirmation</h2>
+        <p id="confirmMessage" style="white-space: pre-wrap;"></p>
+        <div class="popup-buttons">
+            <button id="confirmYesBtn">Yes</button>
+            <button id="confirmNoBtn">No</button>
+        </div>
+    </div>
+    <div class="popup" id="alertPopup">
+        <span class="close" onclick="closeAlertPopup()">×</span>
+        <h2>Information</h2>
+        <p id="alertMessage"></p>
+        <div class="popup-buttons">
+            <button id="alertOkBtn">OK</button>
+        </div>
+    </div>
+    <div class="popup" id="editorPopup">
+        <span class="close" onclick="closeEditorPopup()">×</span>
+        <h2>Edit File</h2>
+        <textarea id="fileEditor" rows="20" style="width: 100%;"></textarea>
+        <div>
+            <button class="button" onclick="saveFile()">Save</button>
+            <button class="button" onclick="closeEditorPopup()">Cancel</button>
+        </div>
+    </div>
+    <footer>
+        <div class="footer-container">
+            <p>Muttley - File Manager &copy; 2025 | Version 1.0</p>
+        </div>
+    </footer>
+    
+    <script src="main.js"></script>
+</body>
+</html>
