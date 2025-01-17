@@ -430,42 +430,35 @@ function renderFiles(items) {
     updateSelectAllCheckbox(); // Ensure the "Select All" checkbox state is updated
 }
 
-
 async function downloadDirectoryAsZip(targetDir) {
     const loadingMessage = "Preparing your download, please wait...";
-    openAlertPopup(loadingMessage);
+    openAlertPopup(loadingMessage); // Display loading message
 
     try {
-        const response = await fetch(`/download_zip`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                target_dir: targetDir
-            })
-        });
+        // Create a temporary form element
+        const form = document.createElement("form");
+        form.method = "POST";
+        form.action = "/download_zip"; // The endpoint URL
 
-        if (!response.ok) {
-            const errorText = await response.text();
-            openAlertPopup("Error downloading directory: " + errorText);
-            return;
-        }
+        // Create a hidden input field for the payload
+        const targetDirInput = document.createElement("input");
+        targetDirInput.type = "hidden";
+        targetDirInput.name = "target_dir";
+        targetDirInput.value = targetDir;
 
-        // Create a Blob from the response
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
+        // Append the input to the form
+        form.appendChild(targetDirInput);
 
-        // Create a temporary link to trigger the download
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = `${targetDir.split('/').pop()}.zip`; // Set ZIP file name
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(url);
+        // Append the form to the document body and submit it
+        document.body.appendChild(form);
+        form.submit();
 
-        closeAlertPopup();
+        // Remove the form after submission
+        document.body.removeChild(form);
+
+        closeAlertPopup(); // Close the loading message after the form submission
     } catch (error) {
-        openAlertPopup("Error downloading directory: " + error.message);
+        openAlertPopup("Error initiating directory download: " + error.message);
     }
 }
 
@@ -896,38 +889,41 @@ async function deleteItem(fileName) {
     }
 }
 
-
 async function downloadItem(fileName) {
     const loadingMessage = "Preparing your download, please wait...";
-    openAlertPopup(loadingMessage);
+    openAlertPopup(loadingMessage); // Display loading message
+
     try {
-        const response = await fetch(`/download`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                target_dir: currentDir,
-                file_name: fileName
-            })
-        });
+        // Create a temporary form element
+        const form = document.createElement("form");
+        form.method = "POST";
+        form.action = "/download"; // The endpoint URL
 
-        if (!response.ok) {
-            const errorText = await response.text();
-            openAlertPopup("Error downloading file: " + errorText);
-            return;
-        }
+        // Create hidden input fields for the payload
+        const targetDirInput = document.createElement("input");
+        targetDirInput.type = "hidden";
+        targetDirInput.name = "target_dir";
+        targetDirInput.value = currentDir;
 
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
+        const fileNameInput = document.createElement("input");
+        fileNameInput.type = "hidden";
+        fileNameInput.name = "file_name";
+        fileNameInput.value = fileName;
 
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = fileName;
-        link.click();
+        // Append inputs to the form
+        form.appendChild(targetDirInput);
+        form.appendChild(fileNameInput);
 
-        window.URL.revokeObjectURL(url);
-	closeAlertPopup();
+        // Append the form to the document body and submit it
+        document.body.appendChild(form);
+        form.submit();
+
+        // Remove the form after submission
+        document.body.removeChild(form);
+
+        closeAlertPopup(); // Close the loading message after the form submission
     } catch (error) {
-        openAlertPopup("Error downloading file: " + error.message);
+        openAlertPopup("Error initiating file download: " + error.message);
     }
 }
 
