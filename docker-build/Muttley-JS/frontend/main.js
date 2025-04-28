@@ -43,10 +43,10 @@ function sortTable(column) {
                     }
                     ${
                         item.is_dir
-                            ? `<button class="button" onclick="downloadDirectoryAsZip('${item.path}')">Download as ZIP</button>`
-                            : `<button class="button" onclick="downloadItem('${item.name}')">Download</button>`
+                            ? `<button class="button" onclick="downloadDirectoryAsZip(${JSON.stringify(item.name)})">Download as ZIP</button>`
+                            : `<button class="button" onclick="downloadItem(${JSON.stringify(item.name)})">Download</button>`
                     }  
-                    <button class="button" onclick="deleteItem('${item.name}')">Delete</button>
+                    <button class="button" onclick="deleteItem(${JSON.stringify(item.name)})">Delete</button>
                 </td>
             `;
             return row;
@@ -219,10 +219,10 @@ function renderSearchResults(results) {
                 }
                 ${
                     item.is_dir
-                        ? `<button class="button" onclick="downloadDirectoryAsZip('${item.path}')">Download as ZIP</button>`
-                        : `<button class="button" onclick="downloadItem('${item.name}')">Download</button>`
+                        ? `<button class="button" onclick="downloadDirectoryAsZip(${JSON.stringify(item.name)})">Download as ZIP</button>`
+                        : `<button class="button" onclick="downloadItem(${JSON.stringify(item.name)})">Download</button>`
                 }  
-                <button class="button" onclick="deleteItem('${item.name}')">Delete</button>
+                <button class="button" onclick="deleteItem(${JSON.stringify(item.name)})">Delete</button>
             </td>
         </tr>
     `
@@ -417,10 +417,10 @@ function renderFiles(items) {
                 }
                 ${
                     item.is_dir
-                        ? `<button class="button" onclick="downloadDirectoryAsZip('${currentDir}/${item.name}')">Download as ZIP</button>`
-                        : `<button class="button" onclick="downloadItem('${item.name}')">Download</button>`
+                        ? `<button class="button" onclick="downloadDirectoryAsZip(${currentDir}/${JSON.stringify(item.name)})">Download as ZIP</button>`
+                        : `<button class="button" onclick="downloadItem(${JSON.stringify(item.name)})">Download</button>`
                 }  
-                <button class="button" onclick="deleteItem('${item.name}')">Delete</button>
+                <button class="button" onclick="deleteItem(${JSON.stringify(item.name)})">Delete</button>
             </td>
         </tr>
     `
