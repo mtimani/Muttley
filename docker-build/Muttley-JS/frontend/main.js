@@ -38,7 +38,7 @@ function sortTable(column) {
                 <td>
                     ${
                         !item.is_dir && item.name.endsWith(".txt")
-                            ? `<button class="button" data-filename="${item.name}" onclick="openEditor(this.dataset.filename)">Edit</button>`
+                            ? `<button class="button" data-filename="${item.name}" onclick="openEditor('${item.name.replace(/'/g, "\\'")}')">Edit</button>`
                             : ""
                     }
                     ${
@@ -214,7 +214,7 @@ function renderSearchResults(results) {
             <td>
                 ${
                     !item.is_dir && item.name.endsWith(".txt")
-                        ? `<button class="button" data-filename="${item.name}" onclick="openEditor(this.dataset.filename)">Edit</button>`
+                        ? `<button class="button" data-filename="${item.name}" onclick="openEditor('${item.name.replace(/'/g, "\\'")}')">Edit</button>`
                         : ""
                 }
                 ${
@@ -412,7 +412,7 @@ function renderFiles(items) {
             <td>
                 ${
                     !item.is_dir && item.name.endsWith(".txt")
-                        ? `<button class="button" data-filename="${item.name}" onclick="openEditor(this.dataset.filename)">Edit</button>`
+                        ? `<button class="button" data-filename="${item.name}" onclick="openEditor('${item.name.replace(/'/g, "\\'")}')">Edit</button>`
                         : ""
                 }
                 ${
