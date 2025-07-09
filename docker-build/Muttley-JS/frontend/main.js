@@ -42,6 +42,11 @@ function sortTable(column) {
                             : ""
                     }
                     ${
+                        !item.is_dir && item.name.endsWith(".pdf")
+                            ? `<button class="button" data-filename="${item.name}" onclick="previewPdf('${item.name.replace(/'/g, "\\'")}')">Preview</button>`
+                            : ""
+                    }                    
+                    ${
                         item.is_dir
                             ? `<button class="button" data-filename="${item.name}" onclick="downloadDirectoryAsZip(this.dataset.filename)">Download as ZIP</button>`
                             : `<button class="button" data-filename="${item.name}" onclick="downloadItem(this.dataset.filename)">Download</button>`
@@ -218,6 +223,11 @@ function renderSearchResults(results) {
                         : ""
                 }
                 ${
+                    !item.is_dir && item.name.endsWith(".pdf")
+                        ? `<button class="button" data-filename="${item.name}" onclick="previewPdf('${item.name.replace(/'/g, "\\'")}')">Preview</button>`
+                        : ""
+                }
+                ${
                     item.is_dir
                         ? `<button class="button" data-filename="${item.name}" onclick="downloadDirectoryAsZip(this.dataset.filename)">Download as ZIP</button>`
                         : `<button class="button" data-filename="${item.name}" onclick="downloadItem(this.dataset.filename)">Download</button>`
@@ -266,6 +276,28 @@ document.getElementById("overlay").addEventListener("click", (e) => {
       closeEditorPopup();
     }
 });
+
+function previewPdf(fileName) {
+    const iframe = document.getElementById("pdfIframe");
+    const popup = document.getElementById("pdfPreviewPopup");
+    const overlay = document.getElementById("overlay");
+
+    const pdfUrl = `/serve_pdf?target_dir=${encodeURIComponent(currentDir)}&file_name=${encodeURIComponent(fileName)}`;
+    iframe.src = pdfUrl;
+
+    popup.style.display = "block";
+    overlay.style.display = "block";
+}
+
+function closePdfPreview() {
+    const popup = document.getElementById("pdfPreviewPopup");
+    const overlay = document.getElementById("overlay");
+    const iframe = document.getElementById("pdfIframe");
+
+    popup.style.display = "none";
+    overlay.style.display = "none";
+    iframe.src = ""; // Clean iframe src
+}
 
 async function openEditor(fileName) {
     try {
@@ -413,6 +445,11 @@ function renderFiles(items) {
                 ${
                     !item.is_dir && item.name.endsWith(".txt")
                         ? `<button class="button" data-filename="${item.name}" onclick="openEditor('${item.name.replace(/'/g, "\\'")}')">Edit</button>`
+                        : ""
+                }
+                ${
+                    !item.is_dir && item.name.endsWith(".pdf")
+                        ? `<button class="button" data-filename="${item.name}" onclick="previewPdf('${item.name.replace(/'/g, "\\'")}')">Preview</button>`
                         : ""
                 }
                 ${
