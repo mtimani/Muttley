@@ -9,6 +9,7 @@ Muttley provides a robust solution for navigating, uploading, downloading, and m
 - **Dynamic File Navigation**: Effortlessly navigate through directories with a clean and responsive UI.
 - **Upload and Download**: Drag-and-drop file uploads with progress feedback and easy file downloads, including support for downloading directories as ZIP archives.
 - **Edit On-the-Fly**: Edit text files directly within the app using the built-in editor.
+- **PDF Preview**: Preview PDF files directly in an overlay popup without leaving the interface, using a built-in viewer with iframe rendering.
 - **Batch Operations**: Delete multiple files and folders simultaneously, with confirmation prompts for non-empty directories.
 - **Streamlined Design**: A visually appealing layout with an integrated header featuring a clickable logo and title for easy navigation back to the root directory.
 - **Basic Authentication support**: Optional Basic Authentication ensures secure access by requiring a username and password. Easily configurable in the backend, it protects against unauthorized usage while maintaining flexibility for deployments without mandatory login.
