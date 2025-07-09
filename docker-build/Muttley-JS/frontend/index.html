@@ -100,6 +100,14 @@
             <button class="button" onclick="closeEditorPopup()">Cancel</button>
         </div>
     </div>
+    <div class="popup" id="pdfPreviewPopup">
+        <span class="close" onclick="closePdfPreview()">×</span>
+        <h2>Preview PDF</h2>
+        <iframe id="pdfIframe" width="100%" height="500px" style="border: none;"></iframe>
+        <div>
+            <button class="button" onclick="closePdfPreview()">Close</button>
+        </div>
+    </div>
     <footer>
         <div class="footer-container">
             <p>Muttley - File Manager &copy; 2025 | Version 1.0</p>
