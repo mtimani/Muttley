@@ -296,6 +296,16 @@ td {
     margin-bottom: 5px;
 }
 
+#pdfPreviewPopup {
+    max-width: 80vw;
+    width: 80vw;
+}
+
+#pdfIframe {
+    height: 80vh;
+    width: 100%;
+}
+
 #functionnality-container {
     display: flex;
     flex-wrap: wrap;
