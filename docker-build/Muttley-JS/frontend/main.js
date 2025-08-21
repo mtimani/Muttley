@@ -301,31 +301,32 @@ function closePdfPreview() {
 
 async function openEditor(fileName) {
     try {
-        const targetDir = currentDir;
-        const response = await fetch(`/download`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                target_dir: targetDir,
-                file_name: fileName
-            })
-        });
-
-        if (!response.ok) {
-            openAlertPopup("Error fetching file content: " + (await response.text()));
-            return;
-        }
-
-        const fileContent = await response.text();
-
-        // Show the editor popup with the file content
-        document.getElementById("editorPopup").style.display = "block";
-        document.getElementById("overlay").style.display = "block";
-        document.getElementById("fileEditor").value = fileContent;
-        document.getElementById("fileEditor").setAttribute("data-filename", fileName);
-        document.getElementById("fileEditor").setAttribute("data-target-dir", targetDir);
+      const targetDir = currentDir;
+      const response = await fetch(`/download`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ target_dir: targetDir, file_name: fileName })
+      });
+  
+      if (!response.ok) {
+        openAlertPopup("Error fetching file content: " + (await response.text()));
+        return;
+      }
+  
+      const fileContent = await response.text();
+  
+      const popup = document.getElementById("editorPopup");
+      const overlay = document.getElementById("overlay");
+      const editor = document.getElementById("fileEditor");
+  
+      editor.value = fileContent;
+      editor.setAttribute("data-filename", fileName);
+      editor.setAttribute("data-target-dir", targetDir);
+  
+      popup.classList.add("is-open");   // ✅ show via class
+      overlay.style.display = "block";
     } catch (error) {
-        openAlertPopup("Error opening editor: " + error.message);
+      openAlertPopup("Error opening editor: " + error.message);
     }
 }
 
@@ -359,10 +360,15 @@ async function saveFile() {
 }
 
 function closeEditorPopup() {
-    document.getElementById("editorPopup").style.display = "none";
-    document.getElementById("overlay").style.display = "none";
-    document.getElementById("fileEditor").value = "";
-    document.getElementById("fileEditor").removeAttribute("data-filename");
+    const popup = document.getElementById("editorPopup");
+    const overlay = document.getElementById("overlay");
+    const editor = document.getElementById("fileEditor");
+  
+    popup.classList.remove("is-open");  // ✅ hide via class
+    overlay.style.display = "none";
+    editor.value = "";
+    editor.removeAttribute("data-filename");
+    editor.removeAttribute("data-target-dir");
 }
 
 async function navigate(dir) {
