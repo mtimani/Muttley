@@ -108,6 +108,16 @@
             <button class="button" onclick="closePdfPreview()">Close</button>
         </div>
     </div>
+    <div class="popup" id="imagePreviewPopup">
+        <span class="close" onclick="closeImagePreview()">×</span>
+        <h2>Preview Image</h2>
+        <div style="text-align: center;">
+            <img id="previewImg" src="" alt="Image preview" style="max-width: 100%; max-height: 70vh; object-fit: contain;">
+        </div>
+        <div>
+            <button class="button" onclick="closeImagePreview()">Close</button>
+        </div>
+    </div>
     <footer>
         <div class="footer-container">
             <p>Muttley - File Manager &copy; 2025 | Version 1.0</p>

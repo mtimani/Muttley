@@ -330,6 +330,15 @@ td {
     width: 100%;
 }
 
+#imagePreviewPopup {
+    max-width: 80vw;
+    width: 80vw;
+}
+
+#imagePreviewPopup img {
+    max-height: 80vh;
+}
+
 #functionnality-container {
     display: flex;
     flex-wrap: wrap;

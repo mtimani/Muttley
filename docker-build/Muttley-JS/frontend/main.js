@@ -45,6 +45,11 @@ function sortTable(column) {
                         !item.is_dir && item.name.endsWith(".pdf")
                             ? `<button class="button" data-filename="${item.name}" onclick="previewPdf('${item.name.replace(/'/g, "\\'")}')">Preview</button>`
                             : ""
+                    }
+                    ${
+                        !item.is_dir && isImageFile(item.name)
+                            ? `<button class="button" data-filename="${item.name}" onclick="previewImage('${item.name.replace(/'/g, "\\'")}')">Preview</button>`
+                            : ""
                     }                    
                     ${
                         item.is_dir
@@ -228,6 +233,11 @@ function renderSearchResults(results) {
                         : ""
                 }
                 ${
+                    !item.is_dir && isImageFile(item.name)
+                        ? `<button class="button" data-filename="${item.name}" onclick="previewImage('${item.name.replace(/'/g, "\\'")}')">Preview</button>`
+                        : ""
+                }
+                ${
                     item.is_dir
                         ? `<button class="button" data-filename="${item.name}" onclick="downloadDirectoryAsZip(this.dataset.filename)">Download as ZIP</button>`
                         : `<button class="button" data-filename="${item.name}" onclick="downloadItem(this.dataset.filename)">Download</button>`
@@ -274,6 +284,7 @@ document.getElementById("overlay").addEventListener("click", (e) => {
       closeConfirmPopup();
       closeAlertPopup();
       closeEditorPopup();
+      closeImagePreview();
     }
 });
 
@@ -297,6 +308,32 @@ function closePdfPreview() {
     popup.style.display = "none";
     overlay.style.display = "none";
     iframe.src = ""; // Clean iframe src
+}
+
+function isImageFile(name) {
+    return /\.(png|jpg|jpeg|gif)$/i.test(name);
+}
+
+function previewImage(fileName) {
+    const img = document.getElementById("previewImg");
+    const popup = document.getElementById("imagePreviewPopup");
+    const overlay = document.getElementById("overlay");
+
+    const imageUrl = `/serve_image?target_dir=${encodeURIComponent(currentDir)}&file_name=${encodeURIComponent(fileName)}`;
+    img.src = imageUrl;
+
+    popup.style.display = "block";
+    overlay.style.display = "block";
+}
+
+function closeImagePreview() {
+    const popup = document.getElementById("imagePreviewPopup");
+    const overlay = document.getElementById("overlay");
+    const img = document.getElementById("previewImg");
+
+    popup.style.display = "none";
+    overlay.style.display = "none";
+    img.src = "";
 }
 
 async function openEditor(fileName) {
@@ -456,6 +493,11 @@ function renderFiles(items) {
                 ${
                     !item.is_dir && item.name.endsWith(".pdf")
                         ? `<button class="button" data-filename="${item.name}" onclick="previewPdf('${item.name.replace(/'/g, "\\'")}')">Preview</button>`
+                        : ""
+                }
+                ${
+                    !item.is_dir && isImageFile(item.name)
+                        ? `<button class="button" data-filename="${item.name}" onclick="previewImage('${item.name.replace(/'/g, "\\'")}')">Preview</button>`
                         : ""
                 }
                 ${

@@ -409,6 +409,41 @@ app.get("/serve_pdf", (req, res) => {
     }
 });
 
+app.get("/serve_image", (req, res) => {
+    try {
+        const { target_dir, file_name } = req.query;
+
+        if (!target_dir || !file_name) {
+            return res.status(400).send("Missing parameters");
+        }
+
+        const safeDir = safePath(target_dir);
+        const filePath = path.join(safeDir, file_name);
+
+        if (!fs.existsSync(filePath)) {
+            return res.status(404).send("File not found");
+        }
+
+        const ext = path.extname(file_name).toLowerCase();
+        const mimeTypes = {
+            ".png": "image/png",
+            ".jpg": "image/jpeg",
+            ".jpeg": "image/jpeg",
+            ".gif": "image/gif"
+        };
+        const contentType = mimeTypes[ext];
+        if (!contentType) {
+            return res.status(400).send("Unsupported image type");
+        }
+
+        res.setHeader("Content-Type", contentType);
+        res.sendFile(filePath);
+    } catch (err) {
+        console.error("Error serving image:", err);
+        res.status(500).send("Failed to serve image file");
+    }
+});
+
 // Start server
 app.listen(3000, () => {
     console.log(`Server running at http://localhost:3000`);
