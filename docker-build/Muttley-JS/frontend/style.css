@@ -167,6 +167,8 @@ header {
   background: var(--danger-light);
   border-color: var(--danger);
 }
+[data-theme="dark"] .btn-action:not(.danger) { color: #a5b4fc; }
+[data-theme="dark"] .btn-action:not(.danger):hover { background: #312e81; border-color: #6366f1; }
 
 /* Tooltip via title attribute */
 .btn-action[title]:hover::after {
@@ -327,8 +329,16 @@ th, td {
 }
 
 th:first-child, td:first-child { width: 36px; }
-th.col-size  { width: 80px; }
-th.col-date  { width: 130px; }
+th.col-size  { width: 110px; white-space: nowrap; text-align: right; }
+th.col-date  { width: 210px; white-space: nowrap; text-align: right; padding-right: 44px; }
+th:last-child { width: 190px; text-align: right; }
+
+td.size, td.last_modified {
+  white-space: nowrap;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+td.last_modified { padding-right: 44px; }
 
 th {
   background: var(--surface-alt);
@@ -354,7 +364,7 @@ tbody tr.selected { background: var(--accent-light); }
 td.actions-cell { white-space: nowrap; width: 1%; text-align: right; }
 
 /* Name cell: takes all remaining space, truncates long names */
-td.name { max-width: 0; }
+td.name { max-width: 0; overflow: hidden; }
 td.name .filename,
 td.name .directory {
   display: inline-block;
@@ -425,14 +435,17 @@ td.name .directory {
 .more-menu button:hover { background: var(--surface-alt); }
 .more-menu button.danger { color: var(--danger); }
 .more-menu button.danger:hover { background: var(--danger-light); }
-
-@media (max-width: 640px) {
-  .actions-row { display: none; }
-  .more-menu-wrapper { display: inline-block; }
+.more-menu button i {
+  width: 16px;
+  text-align: center;
+  flex-shrink: 0;
 }
 
-/* On very small screens hide size + date columns so table fits without horizontal scrolling */
-@media (max-width: 480px) {
+@media (max-width: 750px) {
+  .actions-row { display: none; }
+  .more-menu-wrapper { display: inline-block; }
+  th:last-child { width: 48px; font-size: 0; }
+  td.actions-cell { padding-left: 0; padding-right: 8px; }
   th.col-size, td.size,
   th.col-date, td.last_modified { display: none; }
   .table-container { overflow-x: visible; }

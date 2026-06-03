@@ -854,78 +854,66 @@ async function deleteSelected() {
 
     const itemsToDelete = Array.from(selectedCheckboxes).map(cb => cb.value);
 
-    try {
-        // 2. Send the initial delete request (force = false)
-        let response = await fetch("/delete", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                target_dir: currentDir,
-                items: itemsToDelete,
-                force: false
-            })
-        });
+    openConfirmPopup(
+        `Are you sure you want to delete ${itemsToDelete.length} selected item(s)?`,
+        async () => {
+            try {
+                // Send the delete request (force = false)
+                let response = await fetch("/delete", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        target_dir: currentDir,
+                        items: itemsToDelete,
+                        force: false
+                    })
+                });
 
-        let data = await response.json();
+                let data = await response.json();
 
-        // 3. Check response for "DIRECTORIES_NOT_EMPTY"
-        if (!response.ok && data.error === "DIRECTORIES_NOT_EMPTY") {
-            const nonEmptyDirs = data.dirs; // array of non-empty directory names
-
-            const message = 
-                "The following directories are not empty:\n" +
-                nonEmptyDirs.join(", ") + 
-                "\nDo you want to delete them anyway?";
-
-            document.getElementById("confirmMessage").textContent = message;
-
-            // Show confirm popup (Yes/No)
-            openConfirmPopup(
-                message,
-                async () => {
-                    // onYes callback
-                    const secondResponse = await fetch("/delete", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                            target_dir: currentDir,
-                            items: itemsToDelete,
-                            force: true
-                        })
-                    });
-                    const secondData = await secondResponse.json();
-
-                    if (!secondResponse.ok) {
-                        // Show an alert popup for error
-                        openAlertPopup("Error forcing deletion: " + secondData.error);
-                    } else {
-                        openAlertPopup("All selected items (including non-empty directories) have been deleted.");
-                    }
-                    // Refresh the file list
-                    fetchFiles();
-                },
-                () => {
-                    // onNo callback
-                    openAlertPopup("Deletion was canceled by the user.");
-                    // Refresh the file list
+                // Check response for "DIRECTORIES_NOT_EMPTY"
+                if (!response.ok && data.error === "DIRECTORIES_NOT_EMPTY") {
+                    const nonEmptyDirs = data.dirs;
+                    openConfirmPopup(
+                        `The following directories are not empty: ${nonEmptyDirs.join(", ")}. Delete them anyway?`,
+                        async () => {
+                            const secondResponse = await fetch("/delete", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({
+                                    target_dir: currentDir,
+                                    items: itemsToDelete,
+                                    force: true
+                                })
+                            });
+                            const secondData = await secondResponse.json();
+                            if (!secondResponse.ok) {
+                                openAlertPopup("Error forcing deletion: " + secondData.error);
+                            } else {
+                                openAlertPopup("All selected items (including non-empty directories) have been deleted.");
+                            }
+                            fetchFiles();
+                        },
+                        () => {
+                            openAlertPopup("Deletion was canceled.");
+                            fetchFiles();
+                        }
+                    );
+                }
+                else if (!response.ok) {
+                    openAlertPopup("Error during deletion: " + data.error);
                     fetchFiles();
                 }
-            );
-        }
-        else if (!response.ok) {
-            // Some other error => show alert popup
-            openAlertPopup("Error during deletion: " + data.error);
-            fetchFiles();
-        }
-        else {
-            // 4. If no error => everything was deleted
-            openAlertPopup("Selected items have been successfully deleted.");
-            fetchFiles();
-        }
+                else {
+                    openAlertPopup("Selected items have been successfully deleted.");
+                    fetchFiles();
+                }
 
-    } catch (err) {
-        openAlertPopup("Error during deletion: " + err.message);
-    }
+            } catch (err) {
+                openAlertPopup("Error during deletion: " + err.message);
+            }
+        }
+    );
 }
 
 async function navigateToRoot() {
@@ -1105,75 +1093,66 @@ document.getElementById("dropZone").addEventListener("click", () => {
 });
 
 async function deleteItem(fileName) {
-    try {
-        // 1. First request (force = false)
-        let response = await fetch("/delete", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                target_dir: currentDir,
-                items: [fileName],
-                force: false
-            })
-        });
+    openConfirmPopup(
+        `Are you sure you want to delete "${fileName}"?`,
+        async () => {
+            try {
+                // 1. First request (force = false)
+                let response = await fetch("/delete", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        target_dir: currentDir,
+                        items: [fileName],
+                        force: false
+                    })
+                });
 
-        let data = await response.json();
+                let data = await response.json();
 
-        // 2. Check if the request failed because directory is not empty
-        if (!response.ok && data.error === "DIRECTORIES_NOT_EMPTY") {
-            // Typically data.dirs = [fileName] in this case
-            const nonEmptyDir = data.dirs[0] || fileName;
-            
-            // Build a message for the confirm popup
-            const message = 
-                `The directory "${nonEmptyDir}" is not empty.\n` +
-                `Do you want to delete it anyway?`;
-
-            // 3. Show a "Yes/No" confirm popup
-            openConfirmPopup(
-                message,
-                async () => {
-                    // onYes callback: try forced deletion
-                    const forceResponse = await fetch("/delete", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                            target_dir: currentDir,
-                            items: [fileName],
-                            force: true
-                        })
-                    });
-                    const forceData = await forceResponse.json();
-
-                    if (!forceResponse.ok) {
-                        // Show an alert popup for error
-                        openAlertPopup("Error forcing deletion: " + forceData.error);
-                    } else {
-                        openAlertPopup(`"${fileName}" has been deleted (including its contents).`);
-                    }
-                    fetchFiles();
-                },
-                () => {
-                    // onNo callback: user canceled
-                    openAlertPopup("Deletion was canceled by the user.");
+                // 2. Check if the request failed because directory is not empty
+                if (!response.ok && data.error === "DIRECTORIES_NOT_EMPTY") {
+                    const nonEmptyDir = data.dirs[0] || fileName;
+                    openConfirmPopup(
+                        `The directory "${nonEmptyDir}" is not empty. Do you want to delete it anyway?`,
+                        async () => {
+                            const forceResponse = await fetch("/delete", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({
+                                    target_dir: currentDir,
+                                    items: [fileName],
+                                    force: true
+                                })
+                            });
+                            const forceData = await forceResponse.json();
+                            if (!forceResponse.ok) {
+                                openAlertPopup("Error forcing deletion: " + forceData.error);
+                            } else {
+                                openAlertPopup(`"${fileName}" has been deleted (including its contents).`);
+                            }
+                            fetchFiles();
+                        },
+                        () => {
+                            openAlertPopup("Deletion was canceled.");
+                            fetchFiles();
+                        }
+                    );
+                }
+                else if (!response.ok) {
+                    openAlertPopup("Error deleting: " + data.error);
                     fetchFiles();
                 }
-            );
-        }
-        else if (!response.ok) {
-            // 4. Some other error: show an alert popup
-            openAlertPopup("Error deleting: " + data.error);
-            fetchFiles();
-        }
-        else {
-            // 5. Success: item was deleted (file or empty directory)
-            openAlertPopup(`"${fileName}" has been successfully deleted.`);
-            fetchFiles();
-        }
+                else {
+                    openAlertPopup(`"${fileName}" has been successfully deleted.`);
+                    fetchFiles();
+                }
 
-    } catch (error) {
-        openAlertPopup("Unexpected error: " + error.message);
-    }
+            } catch (error) {
+                openAlertPopup("Unexpected error: " + error.message);
+            }
+        }
+    );
 }
 
 async function downloadItem(fileName) {
