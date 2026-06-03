@@ -12,6 +12,10 @@ Muttley provides a robust solution for navigating, uploading, downloading, and m
 - **PDF Preview**: Preview PDF files directly in an overlay popup without leaving the interface, using a built-in viewer with iframe rendering.
 - **Image Preview**: Preview images (PNG, JPG, JPEG, GIF) directly in an overlay popup without leaving the interface.
 - **Batch Operations**: Delete multiple files and folders simultaneously, with confirmation prompts for non-empty directories.
+- **Rename**: Rename any file or folder directly from the interface using the rename button in the action row.
+- **Share Links**: Generate a secure, time-limited download link for any file. Links are valid for **7 days**, require no login to use, and work automatically in any deployment (local, Docker, or production) thanks to `window.location.origin`-based URL generation. Share links are stored in memory and cleaned up automatically on expiry.
+- **List & Grid Views**: Switch between a compact list view and a large icon grid view (with image thumbnails) using the toggle in the header.
+- **Dark Mode**: Toggle between light and dark themes — preference is saved in `localStorage`.
 - **Streamlined Design**: A visually appealing layout with an integrated header featuring a clickable logo and title for easy navigation back to the root directory.
 - **Basic Authentication support**: Optional Basic Authentication ensures secure access by requiring a username and password. Easily configurable in the backend, it protects against unauthorized usage while maintaining flexibility for deployments without mandatory login.
 

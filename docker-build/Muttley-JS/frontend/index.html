@@ -1,129 +1,251 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Muttley - File Manager</title>
     <link rel="stylesheet" href="style.css">
     <link rel="icon" href="favicon.ico" type="image/x-icon">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">
 </head>
 <body>
-    <a href="#" onclick="navigateToRoot()" class="header-link">
-        <header>
-            <div class="header-container">
-                <img src="logo.webp" alt="Logo" class="header-logo">
-                <h1 class="header-title">Muttley - File Manager</h1>
+    <header>
+        <div class="header-container">
+            <div class="header-spacer"></div>
+            <a href="#" onclick="navigateToRoot()" class="header-left">
+                <img src="logo.webp" alt="Muttley Logo" class="header-logo">
+                <div class="header-title-group">
+                    <span class="header-title">Muttley</span>
+                    <span class="header-subtitle">File Manager</span>
+                </div>
+            </a>
+            <div class="header-actions">
+                <button class="btn-icon" onclick="toggleTheme()" id="themeToggle" title="Toggle dark mode">
+                    <i class="fa-solid fa-moon" id="themeIcon"></i>
+                </button>
+                <button class="btn-icon" onclick="toggleView()" id="viewToggle" title="Switch view">
+                    <i class="fa-solid fa-grip" id="viewIcon"></i>
+                </button>
             </div>
-        </header>
-    </a>    
-    
+        </div>
+    </header>
+
     <main>
         <div id="functionnality-container">
-	    <div id="standard-functionnality-container">
-                <button class="button go-back" onclick="goBack()"><</button>
-                <button class="button" onclick="openUploadPopup()">Upload</button>
-                <button class="button" onclick="deleteSelected()">Delete Selected</button>
-                <button class="button" onclick="openCreateDirPopup()">Create Directory</button>           
-	    </div>
-	    <div id="search-functionnality-container">
-		<input type="text" id="searchInput" placeholder="Search..." class="search-bar">
-		<button class="button" onclick="performSearch()">Search</button>
-	    </div>
-	</div>
-        <div class="table-container">
+            <div id="standard-functionnality-container">
+                <button class="button go-back" onclick="goBack()" title="Go back">
+                    <i class="fa-solid fa-arrow-left"></i>
+                </button>
+                <button class="button" onclick="openUploadPopup()" title="Upload">
+                    <i class="fa-solid fa-upload"></i><span class="btn-label"> Upload</span>
+                </button>
+                <button class="button danger" onclick="deleteSelected()" title="Delete Selected">
+                    <i class="fa-solid fa-trash"></i><span class="btn-label"> Delete Selected</span>
+                </button>
+                <button class="button" onclick="openCreateDirPopup()" title="New Folder">
+                    <i class="fa-solid fa-folder-plus"></i><span class="btn-label"> New Folder</span>
+                </button>
+            </div>
+            <div id="search-functionnality-container">
+                <input type="text" id="searchInput" placeholder="Search files…" class="search-bar">
+                <button class="button" onclick="performSearch()" title="Search">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- List view -->
+        <div class="table-container" id="listContainer">
             <table>
                 <thead>
                     <tr>
-                        <th><input type="checkbox" id="selectAllCheckbox" onclick="toggleSelectAll(this)"></th>
-                        <th onclick="sortTable('name')" style="cursor: pointer;">
+                        <th style="width:36px;"><input type="checkbox" id="selectAllCheckbox" onclick="toggleSelectAll(this)"></th>
+                        <th onclick="sortTable('name')" style="cursor:pointer;">
                             Name <span id="nameSortArrow">⬍</span>
                         </th>
-                        <th onclick="sortTable('size')" style="cursor: pointer;">
+                        <th class="col-size" onclick="sortTable('size')" style="cursor:pointer;">
                             Size <span id="sizeSortArrow">⬍</span>
                         </th>
-                        <th onclick="sortTable('last_modified')" style="cursor: pointer;">
-                            Last Modified <span id="last_modifiedSortArrow">⬍</span>
+                        <th class="col-date" onclick="sortTable('last_modified')" style="cursor:pointer;">
+                            Modified <span id="last_modifiedSortArrow">⬍</span>
                         </th>
-                        <th>Actions</th>
+                        <th style="text-align:right;">Actions</th>
                     </tr>
                 </thead>
                 <tbody id="fileTable"></tbody>
             </table>
         </div>
+
+        <!-- Grid view -->
+        <div id="gridSortBar">
+            <span class="grid-sort-label">Sort by:</span>
+            <button class="button secondary" data-col="name" onclick="sortTable('name')">
+                <i class="fa-solid fa-arrow-up-wide-short"></i><span class="btn-label"> Name</span>
+            </button>
+            <button class="button secondary" data-col="size" onclick="sortTable('size')">
+                <i class="fa-solid fa-arrow-up-wide-short"></i><span class="btn-label"> Size</span>
+            </button>
+            <button class="button secondary" data-col="last_modified" onclick="sortTable('last_modified')">
+                <i class="fa-solid fa-arrow-up-wide-short"></i><span class="btn-label"> Date</span>
+            </button>
+        </div>
+        <div id="gridContainer"></div>
     </main>
+
     <div class="overlay" id="overlay"></div>
+
+    <!-- Upload Popup -->
     <div id="uploadPopup" class="popup">
-        <span class="close" onclick="closeUploadPopup()">×</span>
-        <h2>Upload File</h2>
-        <form id="uploadForm">
-            <input type="file" name="file" id="uploadFile" multiple>
-            <input type="hidden" name="target_dir" id="targetDir">
-            <div id="dropZone" ondragover="handleDragOver(event)" ondrop="handleDrop(event)">
-                Drag and drop files here or click "Upload File" to select files.
-            </div>
-            <ul id="fileListPreview"></ul>
-            <progress id="uploadProgressBar" value="0" max="100" style="width: 100%; display: none;"></progress>
-            <button type="submit">Upload</button>
-        </form>
-    </div>    
+        <div class="popup-inner">
+            <button class="close" onclick="closeUploadPopup()">×</button>
+            <h2><i class="fa-solid fa-upload"></i> Upload Files</h2>
+            <form id="uploadForm">
+                <input type="hidden" name="target_dir" id="targetDir">
+                <div id="dropZone" ondragover="handleDragOver(event)" ondrop="handleDrop(event)">
+                    <i class="fa-solid fa-cloud-arrow-up" style="font-size:2.2rem;display:block;margin-bottom:8px;"></i>
+                    Drag &amp; drop files here<br>or <strong style="color:var(--accent);">click to browse</strong>
+                </div>
+                <input type="file" name="file" id="uploadFile" multiple style="display:none;">
+                <ul id="fileListPreview"></ul>
+                <progress id="uploadProgressBar" value="0" max="100"></progress>
+                <div class="popup-buttons">
+                    <button type="button" class="button secondary" onclick="closeUploadPopup()">Cancel</button>
+                    <button type="submit" class="button"><i class="fa-solid fa-upload"></i> Upload</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Create Directory Popup -->
     <div class="popup" id="createDirPopup">
-        <span class="close" onclick="closeCreateDirPopup()">×</span>
-        <h2>Create Directory</h2>
-        <form id="createDirForm">
-            <input type="text" name="dirname" id="dirname" placeholder="Directory Name" required>
-            <button type="submit">Create</button>
-        </form>
+        <div class="popup-inner">
+            <button class="close" onclick="closeCreateDirPopup()">×</button>
+            <h2><i class="fa-solid fa-folder-plus"></i> New Folder</h2>
+            <form id="createDirForm">
+                <div class="form-group">
+                    <label class="form-label" for="dirname">Folder name</label>
+                    <input type="text" name="dirname" id="dirname" class="form-input" placeholder="e.g. My Documents" required>
+                </div>
+                <div class="popup-buttons">
+                    <button type="button" class="button secondary" onclick="closeCreateDirPopup()">Cancel</button>
+                    <button type="submit" class="button"><i class="fa-solid fa-check"></i> Create</button>
+                </div>
+            </form>
+        </div>
     </div>
+
+    <!-- Rename Popup -->
+    <div class="popup" id="renamePopup">
+        <div class="popup-inner">
+            <button class="close" onclick="closeRenamePopup()">×</button>
+            <h2><i class="fa-solid fa-pen-to-square"></i> Rename</h2>
+            <form id="renameForm">
+                <div class="form-group">
+                    <label class="form-label" for="renameInput">New name</label>
+                    <input type="text" id="renameInput" class="form-input" required>
+                </div>
+                <div class="popup-buttons">
+                    <button type="button" class="button secondary" onclick="closeRenamePopup()">Cancel</button>
+                    <button type="submit" class="button"><i class="fa-solid fa-check"></i> Rename</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Share Popup -->
+    <div class="popup" id="sharePopup">
+        <div class="popup-inner">
+            <button class="close" onclick="closeSharePopup()">×</button>
+            <h2><i class="fa-solid fa-share-nodes"></i> Share File</h2>
+            <p style="font-size:.85rem;color:var(--text-muted);margin-bottom:14px;">
+                Anyone with this link can download the file — no login required.
+            </p>
+            <div class="form-group">
+                <label class="form-label">Share link</label>
+                <div class="share-url-box">
+                    <input type="text" id="shareUrlInput" class="form-input share-url-input" readonly>
+                    <button class="button" onclick="copyShareLink()" title="Copy link">
+                        <i class="fa-solid fa-copy"></i>
+                    </button>
+                </div>
+                <p id="shareExpiryNote"></p>
+            </div>
+            <div class="popup-buttons">
+                <button class="button" onclick="closeSharePopup()">Done</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirm Popup -->
     <div class="popup" id="confirmPopup">
-        <span class="close" onclick="closeConfirmPopup()">×</span>
-        <h2>Confirmation</h2>
-        <p id="confirmMessage" style="white-space: pre-wrap;"></p>
-        <div class="popup-buttons">
-            <button id="confirmYesBtn">Yes</button>
-            <button id="confirmNoBtn">No</button>
+        <div class="popup-inner">
+            <button class="close" onclick="closeConfirmPopup()">×</button>
+            <h2><i class="fa-solid fa-triangle-exclamation" style="color:var(--danger);"></i> Confirm</h2>
+            <p id="confirmMessage" style="white-space:pre-wrap;font-size:.875rem;line-height:1.5;"></p>
+            <div class="popup-buttons">
+                <button id="confirmNoBtn" class="button secondary">Cancel</button>
+                <button id="confirmYesBtn" class="button danger"><i class="fa-solid fa-trash"></i> Yes, delete</button>
+            </div>
         </div>
     </div>
+
+    <!-- Alert Popup -->
     <div class="popup" id="alertPopup">
-        <span class="close" onclick="closeAlertPopup()">×</span>
-        <h2>Information</h2>
-        <p id="alertMessage"></p>
-        <div class="popup-buttons">
-            <button id="alertOkBtn">OK</button>
+        <div class="popup-inner">
+            <button class="close" onclick="closeAlertPopup()">×</button>
+            <h2><i class="fa-solid fa-circle-info"></i> Information</h2>
+            <p id="alertMessage" style="font-size:.875rem;line-height:1.5;"></p>
+            <div class="popup-buttons">
+                <button id="alertOkBtn" class="button">OK</button>
+            </div>
         </div>
     </div>
+
+    <!-- Editor Popup -->
     <div class="popup" id="editorPopup">
-        <span class="close" onclick="closeEditorPopup()">×</span>
-        <h2>Edit File</h2>
-        <textarea id="fileEditor" rows="20"></textarea>
-        <div>
-            <button class="button" onclick="saveFile()">Save</button>
-            <button class="button" onclick="closeEditorPopup()">Cancel</button>
+        <div class="popup-inner">
+            <button class="close" onclick="closeEditorPopup()">×</button>
+            <h2><i class="fa-solid fa-file-pen"></i> Edit File</h2>
+            <textarea id="fileEditor" rows="20"></textarea>
+            <div class="popup-buttons">
+                <button class="button secondary" onclick="closeEditorPopup()">Cancel</button>
+                <button class="button" onclick="saveFile()"><i class="fa-solid fa-floppy-disk"></i> Save</button>
+            </div>
         </div>
     </div>
+
+    <!-- PDF Preview Popup -->
     <div class="popup" id="pdfPreviewPopup">
-        <span class="close" onclick="closePdfPreview()">×</span>
-        <h2>Preview PDF</h2>
-        <iframe id="pdfIframe" width="100%" height="500px" style="border: none;"></iframe>
-        <div>
-            <button class="button" onclick="closePdfPreview()">Close</button>
+        <div class="popup-inner">
+            <button class="close" onclick="closePdfPreview()">×</button>
+            <h2><i class="fa-solid fa-file-pdf"></i> PDF Preview</h2>
+            <iframe id="pdfIframe" width="100%"></iframe>
+            <div class="popup-buttons">
+                <button class="button" onclick="closePdfPreview()">Close</button>
+            </div>
         </div>
     </div>
+
+    <!-- Image Preview Popup -->
     <div class="popup" id="imagePreviewPopup">
-        <span class="close" onclick="closeImagePreview()">×</span>
-        <h2>Preview Image</h2>
-        <div style="text-align: center;">
-            <img id="previewImg" src="" alt="Image preview" style="max-width: 100%; max-height: 70vh; object-fit: contain;">
-        </div>
-        <div>
-            <button class="button" onclick="closeImagePreview()">Close</button>
+        <div class="popup-inner">
+            <button class="close" onclick="closeImagePreview()">×</button>
+            <h2><i class="fa-solid fa-image"></i> Image Preview</h2>
+            <div style="text-align:center;">
+                <img id="previewImg" src="" alt="Image preview">
+            </div>
+            <div class="popup-buttons">
+                <button class="button" onclick="closeImagePreview()">Close</button>
+            </div>
         </div>
     </div>
+
     <footer>
         <div class="footer-container">
-            <p>Muttley - File Manager &copy; 2025 | Version 1.0</p>
+            <p>Muttley &mdash; File Manager v2.0 &copy; <span id="footer-year"></span></p>
         </div>
     </footer>
-    
+
     <script src="main.js"></script>
 </body>
 </html>

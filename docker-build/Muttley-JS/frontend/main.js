@@ -1,10 +1,171 @@
-let currentDir = ""; // Declare currentDir
+let currentDir = "";
 let queuedFiles = [];
+let isSearchActive = false;
+let currentSearchResults = [];
+let currentItems = [];  // full item data cache for grid sorting
+let renameTarget = null;
+let currentView = localStorage.getItem('muttley-view') || 'list';
 
 let sortState = {
     column: null,
     direction: 'asc'
 };
+
+/* ============================================================
+   THEME
+   ============================================================ */
+function initTheme() {
+    const saved = localStorage.getItem('muttley-theme') || 'light';
+    document.documentElement.setAttribute('data-theme', saved);
+    document.getElementById('themeIcon').className = saved === 'dark' ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
+}
+
+function toggleTheme() {
+    const current = document.documentElement.getAttribute('data-theme');
+    const next = current === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next);
+    localStorage.setItem('muttley-theme', next);
+    document.getElementById('themeIcon').className = next === 'dark' ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
+}
+
+/* ============================================================
+   VIEW TOGGLE (list / grid)
+   ============================================================ */
+function initView() {
+    applyView(currentView);
+}
+
+function toggleView() {
+    currentView = currentView === 'list' ? 'grid' : 'list';
+    localStorage.setItem('muttley-view', currentView);
+    applyView(currentView);
+}
+
+function applyView(view) {
+    const listEl   = document.getElementById('listContainer');
+    const gridEl   = document.getElementById('gridContainer');
+    const sortBar  = document.getElementById('gridSortBar');
+    const icon     = document.getElementById('viewIcon');
+    if (view === 'grid') {
+        listEl.style.display = 'none';
+        gridEl.classList.add('active');
+        if (sortBar) sortBar.classList.add('active');
+        icon.className = 'fa-solid fa-list';
+    } else {
+        listEl.style.display = '';
+        gridEl.classList.remove('active');
+        if (sortBar) sortBar.classList.remove('active');
+        icon.className = 'fa-solid fa-grip';
+    }
+}
+
+/* ============================================================
+   FILE TYPE ICONS
+   ============================================================ */
+function getFileTypeIcon(name, isDir) {
+    if (isDir) return '<i class="fa-solid fa-folder file-icon dir"></i>';
+    const ext = name.split('.').pop().toLowerCase();
+    if (['jpg','jpeg','png','gif','webp','bmp','svg'].includes(ext))
+        return '<i class="fa-solid fa-file-image file-icon" style="color:#10b981;"></i>';
+    if (ext === 'pdf')
+        return '<i class="fa-solid fa-file-pdf file-icon" style="color:#ef4444;"></i>';
+    if (['txt','md','log','csv','json','xml','yaml','yml'].includes(ext))
+        return '<i class="fa-solid fa-file-lines file-icon" style="color:#6366f1;"></i>';
+    if (['zip','tar','gz','7z','rar'].includes(ext))
+        return '<i class="fa-solid fa-file-zipper file-icon" style="color:#f97316;"></i>';
+    if (['mp4','mkv','avi','mov','webm'].includes(ext))
+        return '<i class="fa-solid fa-file-video file-icon" style="color:#8b5cf6;"></i>';
+    if (['mp3','wav','flac','aac'].includes(ext))
+        return '<i class="fa-solid fa-file-audio file-icon" style="color:#06b6d4;"></i>';
+    if (['js','ts','py','java','c','cpp','h','cs','php','rb','go','rs','sh'].includes(ext))
+        return '<i class="fa-solid fa-file-code file-icon" style="color:#f59e0b;"></i>';
+    return '<i class="fa-solid fa-file file-icon"></i>';
+}
+
+function getGridCardIcon(name, isDir) {
+    if (isDir) return '<i class="fa-solid fa-folder card-icon dir"></i>';
+    const ext = name.split('.').pop().toLowerCase();
+    if (['jpg','jpeg','png','gif','webp','bmp','svg'].includes(ext)) return null; // uses thumbnail
+    if (ext === 'pdf')  return '<i class="fa-solid fa-file-pdf card-icon pdf"></i>';
+    if (['txt','md','log','csv','json','xml','yaml','yml'].includes(ext))
+        return '<i class="fa-solid fa-file-lines card-icon text"></i>';
+    if (['zip','tar','gz','7z','rar'].includes(ext))
+        return '<i class="fa-solid fa-file-zipper card-icon zip"></i>';
+    if (['mp4','mkv','avi','mov','webm'].includes(ext))
+        return '<i class="fa-solid fa-file-video card-icon video"></i>';
+    if (['mp3','wav','flac','aac'].includes(ext))
+        return '<i class="fa-solid fa-file-audio card-icon audio"></i>';
+    if (['js','ts','py','java','c','cpp','h','cs','php','rb','go','rs','sh'].includes(ext))
+        return '<i class="fa-solid fa-file-code card-icon code"></i>';
+    return '<i class="fa-solid fa-file card-icon default"></i>';
+}
+
+/* ============================================================
+   ACTION BUTTONS
+   ============================================================ */
+function escapeAttr(str) {
+    return str.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+}
+function escapeJs(str) {
+    return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+}
+
+function buildActionsHtml(item) {
+    const jsName  = escapeJs(item.name);
+    let btns = '';
+    if (!item.is_dir && isImageFile(item.name))
+        btns += `<button class="btn-action" title="Preview" onclick="event.stopPropagation();previewImage('${jsName}')"><i class="fa-solid fa-eye"></i></button>`;
+    if (!item.is_dir && item.name.toLowerCase().endsWith('.pdf'))
+        btns += `<button class="btn-action" title="Preview" onclick="event.stopPropagation();previewPdf('${jsName}')"><i class="fa-solid fa-eye"></i></button>`;
+    if (!item.is_dir && item.name.toLowerCase().endsWith('.txt'))
+        btns += `<button class="btn-action" title="Edit" onclick="event.stopPropagation();openEditor('${jsName}')"><i class="fa-solid fa-pencil"></i></button>`;
+    btns += `<button class="btn-action" title="Rename" onclick="event.stopPropagation();openRenamePopup('${jsName}')"><i class="fa-solid fa-i-cursor"></i></button>`;
+    if (!item.is_dir)
+        btns += `<button class="btn-action" title="Share" onclick="event.stopPropagation();shareItem('${jsName}')"><i class="fa-solid fa-share-nodes"></i></button>`;
+    if (item.is_dir) {
+        const dirPath = escapeJs(`${currentDir}/${item.name}`);
+        btns += `<button class="btn-action" title="Download" onclick="event.stopPropagation();downloadDirectoryAsZip('${dirPath}')"><i class="fa-solid fa-download"></i></button>`;
+    } else {
+        btns += `<button class="btn-action" title="Download" onclick="event.stopPropagation();downloadItem('${jsName}')"><i class="fa-solid fa-download"></i></button>`;
+    }
+    btns += `<button class="btn-action danger" title="Delete" onclick="event.stopPropagation();deleteItem('${jsName}')"><i class="fa-solid fa-trash"></i></button>`;
+    return `<div class="actions-row">${btns}</div>${buildMoreMenuWrapper(item)}`;
+}
+
+function buildMoreMenuWrapper(item) {
+    const jsName = escapeJs(item.name);
+    let items = '';
+    if (!item.is_dir && isImageFile(item.name))
+        items += `<button onclick="closeAllMoreMenus();previewImage('${jsName}')"><i class="fa-solid fa-eye"></i> Preview</button>`;
+    if (!item.is_dir && item.name.toLowerCase().endsWith('.pdf'))
+        items += `<button onclick="closeAllMoreMenus();previewPdf('${jsName}')"><i class="fa-solid fa-eye"></i> Preview</button>`;
+    if (!item.is_dir && item.name.toLowerCase().endsWith('.txt'))
+        items += `<button onclick="closeAllMoreMenus();openEditor('${jsName}')"><i class="fa-solid fa-pencil"></i> Edit</button>`;
+    items += `<button onclick="closeAllMoreMenus();openRenamePopup('${jsName}')"><i class="fa-solid fa-i-cursor"></i> Rename</button>`;
+    if (!item.is_dir)
+        items += `<button onclick="closeAllMoreMenus();shareItem('${jsName}')"><i class="fa-solid fa-share-nodes"></i> Share</button>`;
+    if (item.is_dir) {
+        const dirPath = escapeJs(`${currentDir}/${item.name}`);
+        items += `<button onclick="closeAllMoreMenus();downloadDirectoryAsZip('${dirPath}')"><i class="fa-solid fa-download"></i> Download</button>`;
+    } else {
+        items += `<button onclick="closeAllMoreMenus();downloadItem('${jsName}')"><i class="fa-solid fa-download"></i> Download</button>`;
+    }
+    items += `<button class="danger" onclick="closeAllMoreMenus();deleteItem('${jsName}')"><i class="fa-solid fa-trash"></i> Delete</button>`;
+    return `<div class="more-menu-wrapper"><button class="more-menu-btn" onclick="event.stopPropagation();toggleMoreMenu(this)"><i class="fa-solid fa-ellipsis-vertical"></i></button><div class="more-menu">${items}</div></div>`;
+}
+
+function toggleMoreMenu(btn) {
+    const menu = btn.nextElementSibling;
+    const wasOpen = menu.classList.contains('open');
+    closeAllMoreMenus();
+    if (!wasOpen) menu.classList.add('open');
+}
+
+function closeAllMoreMenus() {
+    document.querySelectorAll('.more-menu.open').forEach(m => m.classList.remove('open'));
+}
+
+document.addEventListener('click', () => closeAllMoreMenus());
 
 function parseSizeToBytes(sizeString) {
     if (!sizeString || sizeString === "--") return 0; // Treat missing sizes as 0 bytes
@@ -15,117 +176,104 @@ function parseSizeToBytes(sizeString) {
     return parseFloat(value) * multiplier;
 }
 
+function sortItemsData(items, column, direction) {
+    return [...items].sort((a, b) => {
+        let av, bv;
+        if (column === 'size') {
+            av = parseSizeToBytes(a.size || '--');
+            bv = parseSizeToBytes(b.size || '--');
+        } else if (column === 'last_modified') {
+            av = a.last_modified || 0;
+            bv = b.last_modified || 0;
+        } else {
+            av = a.name.toLowerCase();
+            bv = b.name.toLowerCase();
+        }
+        return direction === 'asc' ? (av > bv ? 1 : -1) : (av < bv ? 1 : -1);
+    });
+}
+
 function sortTable(column) {
-    const fileTableBody = document.getElementById("fileTable");
-    let rows;
-
-    if (isSearchActive) {
-        // If a search is active, use the current search results
-        rows = currentSearchResults.map((item) => {
-            const row = document.createElement("tr");
-            row.setAttribute("data-last-modified", item.last_modified || "");
-            row.innerHTML = `
-                <td><input type="checkbox" value="${item.name}" onclick="updateSelectAllCheckbox()"></td>
-                <td class="name">
-                    ${
-                        item.is_dir
-                            ? `<a href="#" onclick="navigate('${item.name}')" class="directory">${item.name}</a>`
-                            : `<span class="filename">${item.name}</span>`
-                    }
-                </td>
-                <td class="size">${item.size || "--"}</td>
-                <td class="last_modified">${item.last_modified ? formatDate(item.last_modified) : "--"}</td>
-                <td>
-                    ${
-                        !item.is_dir && item.name.endsWith(".txt")
-                            ? `<button class="button" data-filename="${item.name}" onclick="openEditor('${item.name.replace(/'/g, "\\'")}')">Edit</button>`
-                            : ""
-                    }
-                    ${
-                        !item.is_dir && item.name.endsWith(".pdf")
-                            ? `<button class="button" data-filename="${item.name}" onclick="previewPdf('${item.name.replace(/'/g, "\\'")}')">Preview</button>`
-                            : ""
-                    }
-                    ${
-                        !item.is_dir && isImageFile(item.name)
-                            ? `<button class="button" data-filename="${item.name}" onclick="previewImage('${item.name.replace(/'/g, "\\'")}')">Preview</button>`
-                            : ""
-                    }                    
-                    ${
-                        item.is_dir
-                            ? `<button class="button" data-filename="${item.name}" onclick="downloadDirectoryAsZip(this.dataset.filename)">Download as ZIP</button>`
-                            : `<button class="button" data-filename="${item.name}" onclick="downloadItem(this.dataset.filename)">Download</button>`
-                    }  
-                    <button class="button" data-filename="${item.name}" onclick="deleteItem(this.dataset.filename)">Delete</button>
-                </td>
-            `;
-            return row;
-        });
-    } else {
-        // If no search is active, use the current directory rows
-        rows = Array.from(fileTableBody.rows);
-    }
-
-    // Cycle through states: unsorted -> ascending -> descending -> unsorted
     if (sortState.column === column) {
-        if (sortState.direction === "asc") {
-            sortState.direction = "desc";
-        } else if (sortState.direction === "desc") {
-            sortState.direction = "unsorted";
-        } else {
-            sortState.direction = "asc";
-        }
+        if (sortState.direction === 'asc') sortState.direction = 'desc';
+        else if (sortState.direction === 'desc') sortState.direction = 'unsorted';
+        else sortState.direction = 'asc';
     } else {
-        sortState = { column, direction: "asc" };
+        sortState = { column, direction: 'asc' };
     }
 
-    // Handle unsorted state
-    if (sortState.direction === "unsorted") {
-        if (isSearchActive) {
-            renderSearchResults(currentSearchResults); // Re-render the search results unsorted
-        } else {
-            fetchFiles(); // Fetch and render the initial directory list
-        }
+    if (sortState.direction === 'unsorted') {
+        if (isSearchActive) renderSearchResults(currentSearchResults);
+        else fetchFiles();
         updateSortArrows(column);
+        updateGridSortUI(column);
         return;
     }
 
-    // Sorting logic
-    rows.sort((a, b) => {
-        let aValue, bValue;
+    const source = isSearchActive ? currentSearchResults : currentItems;
+    const sorted = sortItemsData(source, column, sortState.direction);
 
-        if (column === "size") {
-            aValue = parseSizeToBytes(
-                a.querySelector(`.${column}`)?.textContent.trim()
-            );
-            bValue = parseSizeToBytes(
-                b.querySelector(`.${column}`)?.textContent.trim()
-            );
-        } else if (column === "last_modified") {
-            aValue = parseInt(a.getAttribute("data-last-modified"), 10);
-            bValue = parseInt(b.getAttribute("data-last-modified"), 10);
-        } else if (column === "name") {
-            aValue = a.querySelector(".name").textContent.trim().toLowerCase();
-            bValue = b.querySelector(".name").textContent.trim().toLowerCase();
-        } else {
-            return 0; // Non-sortable columns
-        }
+    if (isSearchActive) {
+        // update table rows only (grid already rendered via renderSearchResults)
+        const fileTable = document.getElementById('fileTable');
+        const rows = Array.from(fileTable.rows);
+        rows.sort((a, b) => {
+            let av, bv;
+            if (column === 'size') {
+                av = parseSizeToBytes(a.querySelector('.size')?.textContent.trim());
+                bv = parseSizeToBytes(b.querySelector('.size')?.textContent.trim());
+            } else if (column === 'last_modified') {
+                av = parseInt(a.getAttribute('data-last-modified'), 10);
+                bv = parseInt(b.getAttribute('data-last-modified'), 10);
+            } else {
+                av = a.querySelector('.name').textContent.trim().toLowerCase();
+                bv = b.querySelector('.name').textContent.trim().toLowerCase();
+            }
+            return sortState.direction === 'asc' ? (av > bv ? 1 : -1) : (av < bv ? 1 : -1);
+        });
+        fileTable.innerHTML = '';
+        rows.forEach(row => fileTable.appendChild(row));
+    } else {
+        const fileTableBody = document.getElementById('fileTable');
+        const rows = Array.from(fileTableBody.rows);
+        rows.sort((a, b) => {
+            let av, bv;
+            if (column === 'size') {
+                av = parseSizeToBytes(a.querySelector('.size')?.textContent.trim());
+                bv = parseSizeToBytes(b.querySelector('.size')?.textContent.trim());
+            } else if (column === 'last_modified') {
+                av = parseInt(a.getAttribute('data-last-modified'), 10);
+                bv = parseInt(b.getAttribute('data-last-modified'), 10);
+            } else {
+                av = a.querySelector('.name').textContent.trim().toLowerCase();
+                bv = b.querySelector('.name').textContent.trim().toLowerCase();
+            }
+            return sortState.direction === 'asc' ? (av > bv ? 1 : -1) : (av < bv ? 1 : -1);
+        });
+        fileTableBody.innerHTML = '';
+        rows.forEach(row => fileTableBody.appendChild(row));
+    }
 
-        return sortState.direction === "asc"
-            ? aValue > bValue
-                ? 1
-                : -1
-            : aValue < bValue
-            ? 1
-            : -1;
-    });
-
-    // Update the DOM with sorted rows
-    fileTableBody.innerHTML = ""; // Clear existing rows
-    rows.forEach((row) => fileTableBody.appendChild(row)); // Append sorted rows
-
-    // Update the sorting arrow indicators
+    // Always re-render grid with sorted data
+    renderGridView(sorted);
     updateSortArrows(column);
+    updateGridSortUI(column);
+}
+
+function updateGridSortUI(activeColumn) {
+    document.querySelectorAll('#gridSortBar button[data-col]').forEach(btn => {
+        const col = btn.dataset.col;
+        const icon = btn.querySelector('i');
+        if (col === activeColumn && sortState.direction !== 'unsorted') {
+            btn.classList.add('active');
+            icon.className = sortState.direction === 'asc'
+                ? 'fa-solid fa-arrow-up'
+                : 'fa-solid fa-arrow-down';
+        } else {
+            btn.classList.remove('active');
+            icon.className = 'fa-solid fa-arrow-up-wide-short';
+        }
+    });
 }
 
 
@@ -203,62 +351,41 @@ function renderSearchResults(results) {
     const fileTable = document.getElementById("fileTable");
 
     if (results.length === 0) {
-        fileTable.innerHTML = `<tr><td colspan="5">No files or directories found matching the search term.</td></tr>`;
+        fileTable.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:32px;">No files or directories found.</td></tr>`;
         return;
     }
 
-    fileTable.innerHTML = results
-        .map(
-            (item) => `
-        <tr data-last-modified="${item.last_modified || ''}">
-            <td><input type="checkbox" value="${item.name}" onclick="updateSelectAllCheckbox()"></td>
-            <td class="name">
-                ${
-                    item.is_dir
-                        ? `<a href="#" onclick="navigate('${item.name}')" class="directory">${item.name}</a>`
-                        : `<span class="filename">${item.name}</span>`
-                }
-            </td>
-            <td class="size">${item.size || "--"}</td>
-            <td class="last_modified">${item.last_modified ? formatDate(item.last_modified) : "--"}</td>
-            <td>
-                ${
-                    !item.is_dir && item.name.endsWith(".txt")
-                        ? `<button class="button" data-filename="${item.name}" onclick="openEditor('${item.name.replace(/'/g, "\\'")}')">Edit</button>`
-                        : ""
-                }
-                ${
-                    !item.is_dir && item.name.endsWith(".pdf")
-                        ? `<button class="button" data-filename="${item.name}" onclick="previewPdf('${item.name.replace(/'/g, "\\'")}')">Preview</button>`
-                        : ""
-                }
-                ${
-                    !item.is_dir && isImageFile(item.name)
-                        ? `<button class="button" data-filename="${item.name}" onclick="previewImage('${item.name.replace(/'/g, "\\'")}')">Preview</button>`
-                        : ""
-                }
-                ${
-                    item.is_dir
-                        ? `<button class="button" data-filename="${item.name}" onclick="downloadDirectoryAsZip(this.dataset.filename)">Download as ZIP</button>`
-                        : `<button class="button" data-filename="${item.name}" onclick="downloadItem(this.dataset.filename)">Download</button>`
-                }  
-                <button class="button" data-filename="${item.name}" onclick="deleteItem(this.dataset.filename)">Delete</button>
-            </td>
-        </tr>
-    `
-        )
-        .join("");
+    fileTable.innerHTML = results.map(item => {
+        const icon = getFileTypeIcon(item.name, item.is_dir);
+        const nameCell = item.is_dir
+            ? `${icon}<a href="#" onclick="event.stopPropagation();navigate('${escapeJs(item.name)}')" class="directory">${item.name}</a>`
+            : `${icon}<span class="filename">${item.name}</span>`;
+        return `
+        <tr data-last-modified="${item.last_modified || ''}" onclick="rowClick(this)">
+            <td onclick="event.stopPropagation()"><input type="checkbox" value="${escapeAttr(item.name)}" onclick="updateSelectAllCheckbox()"></td>
+            <td class="name">${nameCell}</td>
+            <td class="size">${item.size || '--'}</td>
+            <td class="last_modified">${item.last_modified ? formatDate(item.last_modified) : '--'}</td>
+            <td class="actions-cell">${buildActionsHtml(item)}</td>
+        </tr>`;
+    }).join('');
 
-    updateSelectAllCheckbox(); // Ensure the "Select All" checkbox state is updated
+    updateSelectAllCheckbox();
+    currentItems = results;
+    renderGridView(results);
 }
 
 async function initialize() {
+    initTheme();
+    initView();
+    document.getElementById('footer-year').textContent = new Date().getFullYear();
     try {
         const response = await fetch("/config");
         const data = await response.json();
-        currentDir = data.base_dir; // Initialize currentDir
-        fetchFiles(); // Fetch initial files
+        currentDir = data.base_dir;
+        fetchFiles();
     } catch (error) {
+        console.error("Error initializing:", error);
     }
 }
 
@@ -279,12 +406,15 @@ async function fetchFiles() {
 
 document.getElementById("overlay").addEventListener("click", (e) => {
     if (e.target === e.currentTarget) {
-      closeUploadPopup();
-      closeCreateDirPopup();
-      closeConfirmPopup();
-      closeAlertPopup();
-      closeEditorPopup();
-      closeImagePreview();
+        closeUploadPopup();
+        closeCreateDirPopup();
+        closeConfirmPopup();
+        closeAlertPopup();
+        closeEditorPopup();
+        closeImagePreview();
+        closePdfPreview();
+        closeRenamePopup();
+        closeSharePopup();
     }
 });
 
@@ -444,6 +574,14 @@ function toggleSelectAll(selectAllCheckbox) {
     const checkboxes = document.querySelectorAll("tbody#fileTable input[type='checkbox']");
     checkboxes.forEach(checkbox => {
         checkbox.checked = selectAllCheckbox.checked;
+        const row = checkbox.closest('tr');
+        if (row) row.classList.toggle('selected', selectAllCheckbox.checked);
+    });
+    // Sync grid view
+    document.querySelectorAll('.card-checkbox').forEach(cb => {
+        cb.checked = selectAllCheckbox.checked;
+        const card = cb.closest('.grid-card');
+        if (card) card.classList.toggle('selected', selectAllCheckbox.checked);
     });
 }
 
@@ -468,51 +606,99 @@ function updateSelectAllCheckbox() {
     }
 }
 
-function renderFiles(items) {
-    const fileTable = document.getElementById("fileTable");
-    fileTable.innerHTML = items
-        .map(
-            (item) => `
-        <tr data-last-modified="${item.last_modified}">
-            <td><input type="checkbox" value="${item.name}" onclick="updateSelectAllCheckbox()"></td>
-            <td class="name">
-                ${
-                    item.is_dir
-                        ? `<a href="#" onclick="navigate('${item.name}')" class="directory">${item.name}</a>`
-                        : `<span class="filename">${item.name}</span>`
-                }
-            </td>
-            <td class="size">${item.size || "--"}</td>
-            <td class="last_modified">${formatDate(item.last_modified)}</td>
-            <td>
-                ${
-                    !item.is_dir && item.name.endsWith(".txt")
-                        ? `<button class="button" data-filename="${item.name}" onclick="openEditor('${item.name.replace(/'/g, "\\'")}')">Edit</button>`
-                        : ""
-                }
-                ${
-                    !item.is_dir && item.name.endsWith(".pdf")
-                        ? `<button class="button" data-filename="${item.name}" onclick="previewPdf('${item.name.replace(/'/g, "\\'")}')">Preview</button>`
-                        : ""
-                }
-                ${
-                    !item.is_dir && isImageFile(item.name)
-                        ? `<button class="button" data-filename="${item.name}" onclick="previewImage('${item.name.replace(/'/g, "\\'")}')">Preview</button>`
-                        : ""
-                }
-                ${
-                    item.is_dir
-                        ? `<button class="button" data-filename="${currentDir}/${item.name}" onclick="downloadDirectoryAsZip(this.dataset.filename)">Download as ZIP</button>`
-                        : `<button class="button" data-filename="${item.name}" onclick="downloadItem(this.dataset.filename)">Download</button>`
-                }  
-                <button class="button" data-filename="${item.name}" onclick="deleteItem(this.dataset.filename)">Delete</button>
-            </td>
-        </tr>
-    `
-        )
-        .join("");
+function rowClick(tr) {
+    const checkbox = tr.querySelector('input[type="checkbox"]');
+    if (checkbox) {
+        checkbox.checked = !checkbox.checked;
+        tr.classList.toggle('selected', checkbox.checked);
+        updateSelectAllCheckbox();
+    }
+}
 
-    updateSelectAllCheckbox(); // Ensure the "Select All" checkbox state is updated
+function renderFiles(items) {
+    currentItems = items;
+    const fileTable = document.getElementById("fileTable");
+    fileTable.innerHTML = items.map(item => {
+        const icon = getFileTypeIcon(item.name, item.is_dir);
+        const nameCell = item.is_dir
+            ? `${icon}<a href="#" onclick="event.stopPropagation();navigate('${escapeJs(item.name)}')" class="directory">${item.name}</a>`
+            : `${icon}<span class="filename">${item.name}</span>`;
+        return `
+        <tr data-last-modified="${item.last_modified}" onclick="rowClick(this)">
+            <td onclick="event.stopPropagation()"><input type="checkbox" value="${escapeAttr(item.name)}" onclick="updateSelectAllCheckbox()"></td>
+            <td class="name">${nameCell}</td>
+            <td class="size">${item.size || '--'}</td>
+            <td class="last_modified">${formatDate(item.last_modified)}</td>
+            <td class="actions-cell">${buildActionsHtml(item)}</td>
+        </tr>`;
+    }).join('');
+
+    updateSelectAllCheckbox();
+    renderGridView(items);
+}
+
+function renderGridView(items) {
+    const grid = document.getElementById('gridContainer');
+    if (!grid) return;
+    grid.innerHTML = items.map((item, idx) => {
+        const isImg = !item.is_dir && isImageFile(item.name);
+        const iconHtml = getGridCardIcon(item.name, item.is_dir);
+        let mediaHtml;
+        if (isImg) {
+            const imgSrc = `/serve_image?target_dir=${encodeURIComponent(currentDir)}&file_name=${encodeURIComponent(item.name)}`;
+            mediaHtml = `<div class="card-media"><img class="card-thumb" src="${imgSrc}" alt="${escapeAttr(item.name)}" onerror="this.style.display='none';this.nextElementSibling.style.display='block'"><i class="fa-solid fa-file-image card-icon image" style="display:none;"></i></div>`;
+        } else {
+            mediaHtml = `<div class="card-media">${iconHtml || '<i class="fa-solid fa-file card-icon default"></i>'}</div>`;
+        }
+        const jsName = escapeJs(item.name);
+
+        // Build action buttons (same logic as buildActionsHtml but for cards)
+        let cardBtns = '';
+        if (!item.is_dir && isImageFile(item.name))
+            cardBtns += `<button class="btn-action" title="Preview" onclick="event.stopPropagation();previewImage('${jsName}')"><i class="fa-solid fa-eye"></i></button>`;
+        if (!item.is_dir && item.name.toLowerCase().endsWith('.pdf'))
+            cardBtns += `<button class="btn-action" title="Preview" onclick="event.stopPropagation();previewPdf('${jsName}')"><i class="fa-solid fa-eye"></i></button>`;
+        if (!item.is_dir && item.name.toLowerCase().endsWith('.txt'))
+            cardBtns += `<button class="btn-action" title="Edit" onclick="event.stopPropagation();openEditor('${jsName}')"><i class="fa-solid fa-pencil"></i></button>`;
+        cardBtns += `<button class="btn-action" title="Rename" onclick="event.stopPropagation();openRenamePopup('${jsName}')"><i class="fa-solid fa-i-cursor"></i></button>`;
+        if (!item.is_dir)
+            cardBtns += `<button class="btn-action" title="Share" onclick="event.stopPropagation();shareItem('${jsName}')"><i class="fa-solid fa-share-nodes"></i></button>`;
+        if (item.is_dir) {
+            cardBtns += `<button class="btn-action" title="Download" onclick="event.stopPropagation();downloadDirectoryAsZip('${escapeJs(currentDir + '/' + item.name)}')"><i class="fa-solid fa-download"></i></button>`;
+        } else {
+            cardBtns += `<button class="btn-action" title="Download" onclick="event.stopPropagation();downloadItem('${jsName}')"><i class="fa-solid fa-download"></i></button>`;
+        }
+        cardBtns += `<button class="btn-action danger" title="Delete" onclick="event.stopPropagation();deleteItem('${jsName}')"><i class="fa-solid fa-trash"></i></button>`;
+
+        return `
+        <div class="grid-card" id="grid-card-${idx}" onclick="gridCardClick(${idx},'${jsName}',${item.is_dir})">
+            <input type="checkbox" class="card-checkbox" value="${escapeAttr(item.name)}" onclick="event.stopPropagation();gridCheckboxClick(${idx},'${jsName}')">
+            ${mediaHtml}
+            <div class="card-name">${item.name}</div>
+            <div class="card-size">${item.size || '--'}</div>
+            <div class="card-actions">${cardBtns}</div>
+        </div>`;
+    }).join('');
+}
+
+function gridCardClick(idx, name, isDir) {
+    if (isDir) { navigate(name); return; }
+    gridCheckboxClick(idx, name);
+}
+
+function gridCheckboxClick(idx, name) {
+    const card = document.getElementById(`grid-card-${idx}`);
+    const cb = card.querySelector('.card-checkbox');
+    cb.checked = !cb.checked;
+    card.classList.toggle('selected', cb.checked);
+    // Sync table checkbox
+    const tableCb = document.querySelector(`tbody#fileTable input[value="${CSS.escape(name)}"]`);
+    if (tableCb) {
+        tableCb.checked = cb.checked;
+        const row = tableCb.closest('tr');
+        if (row) row.classList.toggle('selected', cb.checked);
+    }
+    updateSelectAllCheckbox();
 }
 
 async function downloadDirectoryAsZip(targetDir) {
@@ -891,9 +1077,22 @@ function handleDrop(event) {
 
 function updateFileListPreview() {
     const fileListPreview = document.getElementById("fileListPreview");
-    fileListPreview.innerHTML = queuedFiles
-        .map(file => `<li>${file.name} (${(file.size / 1024).toFixed(1)} KB)</li>`)
-        .join("");
+    if (queuedFiles.length === 0) {
+        fileListPreview.innerHTML = '';
+        return;
+    }
+    fileListPreview.innerHTML = queuedFiles.map((file, idx) => `
+        <li>
+            <i class="fa-solid fa-file" style="color:var(--text-muted);flex-shrink:0;"></i>
+            <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${file.name}</span>
+            <span style="color:var(--text-muted);font-size:.72rem;flex-shrink:0;">${(file.size / 1024).toFixed(1)} KB</span>
+            <button type="button" class="remove-file-btn" onclick="removeQueuedFile(${idx})" title="Remove"><i class="fa-solid fa-xmark"></i></button>
+        </li>`).join('');
+}
+
+function removeQueuedFile(idx) {
+    queuedFiles.splice(idx, 1);
+    updateFileListPreview();
 }
 
 document.getElementById("dropZone").addEventListener("dragover", handleDragOver);
@@ -901,6 +1100,9 @@ document.getElementById("dropZone").addEventListener("dragleave", () => {
     document.getElementById("dropZone").classList.remove("dragover");
 });
 document.getElementById("dropZone").addEventListener("drop", handleDrop);
+document.getElementById("dropZone").addEventListener("click", () => {
+    document.getElementById("uploadFile").click();
+});
 
 async function deleteItem(fileName) {
     try {
@@ -1013,5 +1215,83 @@ async function downloadItem(fileName) {
 }
 
 
+/* ============================================================
+   RENAME
+   ============================================================ */
+
+function openRenamePopup(name) {
+    renameTarget = name;
+    document.getElementById('renameInput').value = name;
+    document.getElementById('renamePopup').style.display = 'block';
+    document.getElementById('overlay').style.display = 'block';
+    setTimeout(() => document.getElementById('renameInput').select(), 50);
+}
+
+function closeRenamePopup() {
+    document.getElementById('renamePopup').style.display = 'none';
+    document.getElementById('overlay').style.display = 'none';
+    renameTarget = null;
+}
+
+document.getElementById('renameForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const newName = document.getElementById('renameInput').value.trim();
+    if (!newName || newName === renameTarget) { closeRenamePopup(); return; }
+    try {
+        const resp = await fetch('/rename', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ target_dir: currentDir, old_name: renameTarget, new_name: newName })
+        });
+        const data = await resp.json();
+        if (!resp.ok) openAlertPopup('Error renaming: ' + data.error);
+        else { closeRenamePopup(); fetchFiles(); }
+    } catch (err) {
+        openAlertPopup('Error: ' + err.message);
+    }
+});
+
+/* ============================================================
+   SHARE
+   ============================================================ */
+async function shareItem(fileName) {
+    try {
+        const resp = await fetch('/share', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ target_dir: currentDir, file_name: fileName })
+        });
+        const data = await resp.json();
+        if (!resp.ok) { openAlertPopup('Error creating share link: ' + data.error); return; }
+        const url = `${window.location.origin}/share/${data.token}`;
+        document.getElementById('shareUrlInput').value = url;
+        const expiry = new Date(data.expiresAt);
+        document.getElementById('shareExpiryNote').textContent =
+            `This link expires on ${expiry.toLocaleDateString()} at ${expiry.toLocaleTimeString()} (7 days).`;
+        document.getElementById('sharePopup').style.display = 'block';
+        document.getElementById('overlay').style.display = 'block';
+    } catch (err) {
+        openAlertPopup('Error: ' + err.message);
+    }
+}
+
+function closeSharePopup() {
+    document.getElementById('sharePopup').style.display = 'none';
+    document.getElementById('overlay').style.display = 'none';
+}
+
+async function copyShareLink() {
+    const input = document.getElementById('shareUrlInput');
+    try {
+        await navigator.clipboard.writeText(input.value);
+        openAlertPopup('Link copied to clipboard!');
+    } catch {
+        input.select();
+        document.execCommand('copy');
+        openAlertPopup('Link copied!');
+    }
+}
+
 // Initialize on page load
 initialize();
+

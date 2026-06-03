@@ -4,9 +4,20 @@ const path = require("path");
 const multer = require("multer");
 const basicAuth = require("express-basic-auth");
 const archiver = require("archiver");
+const crypto = require("crypto");
 
 const app = express();
 const BASE_DIR = path.resolve(process.env.FILE_SERVER_ROOT || "./data");
+
+const shareTokens = new Map();
+
+// Cleanup expired tokens hourly
+setInterval(() => {
+    const now = Date.now();
+    for (const [token, entry] of shareTokens.entries()) {
+        if (now > entry.expiresAt) shareTokens.delete(token);
+    }
+}, 60 * 60 * 1000);
 
 const FRONTEND_DIR = path.resolve(__dirname, "../frontend");
 app.use(express.static(FRONTEND_DIR));
@@ -19,6 +30,19 @@ if (!fs.existsSync(BASE_DIR)) {
 // Middleware for JSON and form parsing
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Public share download — must be before auth middleware
+app.get("/share/:token", (req, res) => {
+    const { token } = req.params;
+    const entry = shareTokens.get(token);
+    if (!entry) return res.status(404).send("Share link not found or expired.");
+    if (Date.now() > entry.expiresAt) {
+        shareTokens.delete(token);
+        return res.status(410).send("Share link has expired.");
+    }
+    if (!fs.existsSync(entry.filePath)) return res.status(404).send("File no longer exists.");
+    res.download(entry.filePath, entry.fileName);
+});
 
 // Authentication setup
 const USERNAME = process.env.AUTH_USERNAME || null;
@@ -441,6 +465,48 @@ app.get("/serve_image", (req, res) => {
     } catch (err) {
         console.error("Error serving image:", err);
         res.status(500).send("Failed to serve image file");
+    }
+});
+
+// POST /rename — rename file or folder
+app.post("/rename", (req, res) => {
+    try {
+        const { target_dir, old_name, new_name } = req.body;
+        if (!old_name || !new_name)
+            return res.status(400).json({ error: "old_name and new_name are required" });
+        if (new_name.includes("/") || new_name.includes("\\"))
+            return res.status(400).json({ error: "Invalid name" });
+        const safeDir = safePath(target_dir || BASE_DIR);
+        const oldPath = path.join(safeDir, path.basename(old_name));
+        const newPath = path.join(safeDir, path.basename(new_name));
+        if (!fs.existsSync(oldPath)) return res.status(404).json({ error: "Item not found" });
+        if (fs.existsSync(newPath)) return res.status(400).json({ error: "An item with that name already exists" });
+        fs.renameSync(oldPath, newPath);
+        res.json({ message: "Renamed successfully" });
+    } catch (err) {
+        console.error("Error renaming:", err);
+        res.status(400).json({ error: err.message });
+    }
+});
+
+// POST /share — generate share token (requires auth if auth is enabled)
+app.post("/share", (req, res) => {
+    try {
+        const { target_dir, file_name } = req.body;
+        if (!target_dir || !file_name)
+            return res.status(400).json({ error: "Missing params" });
+        const safeDir = safePath(target_dir);
+        const filePath = path.join(safeDir, path.basename(file_name));
+        if (!fs.existsSync(filePath)) return res.status(404).json({ error: "File not found" });
+        if (fs.lstatSync(filePath).isDirectory())
+            return res.status(400).json({ error: "Cannot share a directory" });
+        const token = crypto.randomBytes(32).toString("hex");
+        const expiresAt = Date.now() + 7 * 24 * 60 * 60 * 1000;
+        shareTokens.set(token, { filePath, fileName: file_name, expiresAt });
+        res.json({ token, expiresAt });
+    } catch (err) {
+        console.error("Error creating share:", err);
+        res.status(400).json({ error: err.message });
     }
 });
 
