@@ -8,10 +8,12 @@ Muttley provides a robust solution for navigating, uploading, downloading, and m
 ## 🔔 Features
 - **Dynamic File Navigation**: Effortlessly navigate through directories with a clean and responsive UI.
 - **Upload and Download**: Drag-and-drop file uploads with progress feedback and easy file downloads, including support for downloading directories as ZIP archives.
+- **Bulk Download**: Select multiple files and folders and download them all at once as a single ZIP archive using the **Download Selected** button.
 - **Edit On-the-Fly**: Edit text files directly within the app using the built-in editor.
 - **PDF Preview**: Preview PDF files directly in an overlay popup without leaving the interface, using a built-in viewer with iframe rendering.
 - **Image Preview**: Preview images (PNG, JPG, JPEG, GIF) directly in an overlay popup without leaving the interface.
 - **Batch Operations**: Delete multiple files and folders simultaneously, with confirmation prompts for non-empty directories.
+- **Manual Refresh**: Instantly re-sync the file list with the server using the **Refresh** button in the header — no page reload, state and open editors are preserved.
 - **Rename**: Rename any file or folder directly from the interface using the rename button in the action row.
 - **Share Links**: Generate a secure, time-limited download link for any file. Links are valid for **7 days**, require no login to use, and work automatically in any deployment (local, Docker, or production) thanks to `window.location.origin`-based URL generation. Share links are stored in memory and cleaned up automatically on expiry.
 - **List & Grid Views**: Switch between a compact list view and a large icon grid view (with image thumbnails) using the toggle in the header.

@@ -240,6 +240,46 @@ app.post("/download_zip", (req, res) => {
     }
 });
 
+// POST /download_selected_zip
+app.post("/download_selected_zip", (req, res) => {
+    try {
+        const { target_dir, items } = req.body;
+
+        if (!target_dir || !Array.isArray(items) || items.length === 0) {
+            return res.status(400).json({ error: "target_dir and items are required" });
+        }
+
+        const safeTargetDir = safePath(target_dir);
+        const archive = archiver("zip", { zlib: { level: 9 } });
+
+        res.attachment("selected_files.zip");
+        res.setHeader("Content-Type", "application/zip");
+
+        archive.on("error", (err) => {
+            console.error("Archive error:", err);
+            res.status(500).json({ error: "Error creating ZIP file" });
+        });
+
+        archive.pipe(res);
+
+        for (const item of items) {
+            const safeName = path.basename(item);
+            const itemPath = path.join(safeTargetDir, safeName);
+            if (!fs.existsSync(itemPath)) continue;
+            if (fs.lstatSync(itemPath).isDirectory()) {
+                archive.directory(itemPath, safeName);
+            } else {
+                archive.file(itemPath, { name: safeName });
+            }
+        }
+
+        archive.finalize();
+    } catch (err) {
+        console.error("Error creating ZIP for selected items:", err);
+        res.status(400).json({ error: err.message });
+    }
+});
+
 // POST /delete route
 app.post("/delete", async (req, res) => {
     const targetDir = req.body.target_dir || "./data"; // Adjust BASE_DIR

@@ -20,6 +20,9 @@
                 </div>
             </a>
             <div class="header-actions">
+                <button class="btn-icon" onclick="refreshFiles()" id="refreshBtn" title="Refresh">
+                    <i class="fa-solid fa-arrows-rotate" id="refreshIcon"></i>
+                </button>
                 <button class="btn-icon" onclick="toggleTheme()" id="themeToggle" title="Toggle dark mode">
                     <i class="fa-solid fa-moon" id="themeIcon"></i>
                 </button>
@@ -38,6 +41,9 @@
                 </button>
                 <button class="button" onclick="openUploadPopup()" title="Upload">
                     <i class="fa-solid fa-upload"></i><span class="btn-label"> Upload</span>
+                </button>
+                <button class="button" onclick="downloadSelected()" title="Download Selected">
+                    <i class="fa-solid fa-download"></i><span class="btn-label"> Download Selected</span>
                 </button>
                 <button class="button danger" onclick="deleteSelected()" title="Delete Selected">
                     <i class="fa-solid fa-trash"></i><span class="btn-label"> Delete Selected</span>

@@ -14,6 +14,15 @@ let sortState = {
 /* ============================================================
    THEME
    ============================================================ */
+function refreshFiles() {
+    const icon = document.getElementById('refreshIcon');
+    icon.classList.remove('spinning');
+    void icon.offsetWidth; // reflow to restart animation
+    icon.classList.add('spinning');
+    icon.addEventListener('animationend', () => icon.classList.remove('spinning'), { once: true });
+    fetchFiles();
+}
+
 function initTheme() {
     const saved = localStorage.getItem('muttley-theme') || 'light';
     document.documentElement.setAttribute('data-theme', saved);
@@ -914,6 +923,44 @@ async function deleteSelected() {
             }
         }
     );
+}
+
+async function downloadSelected() {
+    const selectedCheckboxes = Array.from(document.querySelectorAll("tbody#fileTable input[type='checkbox']:checked"));
+    if (selectedCheckboxes.length === 0) {
+        openAlertPopup("No items selected for download.");
+        return;
+    }
+
+    const itemsToDownload = selectedCheckboxes.map(cb => cb.value);
+    openAlertPopup("Preparing your download, please wait...");
+
+    try {
+        const response = await fetch("/download_selected_zip", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ target_dir: currentDir, items: itemsToDownload })
+        });
+
+        if (!response.ok) {
+            const err = await response.json();
+            openAlertPopup("Error creating ZIP: " + (err.error || "Unknown error"));
+            return;
+        }
+
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "selected_files.zip";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        closeAlertPopup();
+    } catch (error) {
+        openAlertPopup("Error initiating download: " + error.message);
+    }
 }
 
 async function navigateToRoot() {
