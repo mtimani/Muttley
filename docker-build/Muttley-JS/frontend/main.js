@@ -5,6 +5,7 @@ let currentSearchResults = [];
 let currentItems = [];  // full item data cache for grid sorting
 let renameTarget = null;
 let currentView = localStorage.getItem('muttley-view') || 'list';
+let pageDragDepth = 0;
 
 let sortState = {
     column: null,
@@ -681,7 +682,7 @@ function renderGridView(items) {
 
         return `
         <div class="grid-card" id="grid-card-${idx}" onclick="gridCardClick(${idx},'${jsName}',${item.is_dir})">
-            <input type="checkbox" class="card-checkbox" value="${escapeAttr(item.name)}" onclick="event.stopPropagation();gridCheckboxClick(${idx},'${jsName}')">
+            <input type="checkbox" class="card-checkbox" value="${escapeAttr(item.name)}" onclick="event.stopPropagation();gridCheckboxClick(${idx},'${jsName}',this.checked)">
             ${mediaHtml}
             <div class="card-name">${item.name}</div>
             <div class="card-size">${item.size || '--'}</div>
@@ -695,10 +696,10 @@ function gridCardClick(idx, name, isDir) {
     gridCheckboxClick(idx, name);
 }
 
-function gridCheckboxClick(idx, name) {
+function gridCheckboxClick(idx, name, checked = null) {
     const card = document.getElementById(`grid-card-${idx}`);
     const cb = card.querySelector('.card-checkbox');
-    cb.checked = !cb.checked;
+    cb.checked = checked === null ? !cb.checked : checked;
     card.classList.toggle('selected', cb.checked);
     // Sync table checkbox
     const tableCb = document.querySelector(`tbody#fileTable input[value="${CSS.escape(name)}"]`);
@@ -742,15 +743,17 @@ async function downloadDirectoryAsZip(targetDir) {
     }
 }
 
-function openUploadPopup() {
+function openUploadPopup(options = {}) {
+    const { preserveQueue = false } = options;
     document.getElementById("uploadPopup").style.display = "block";
     document.getElementById("overlay").style.display = "block";
     document.getElementById("targetDir").value = currentDir;
 
-    // Clear file input and queued files on opening the popup
-    document.getElementById("uploadFile").value = ""; // Reset file input
-    queuedFiles = []; // Clear the queue
-    updateFileListPreview(); // Clear preview list
+    if (!preserveQueue) {
+        document.getElementById("uploadFile").value = ""; // Reset file input
+        queuedFiles = []; // Clear the queue
+        updateFileListPreview(); // Clear preview list
+    }
 }
 
 function closeUploadPopup() {
@@ -980,18 +983,34 @@ async function navigateToRoot() {
 }
 
 document.getElementById("uploadFile").addEventListener("change", (event) => {
-    const files = Array.from(event.target.files);
+    queueUploadFiles(Array.from(event.target.files));
+});
 
-    files.forEach(file => {
-        // Avoid duplicates
-        if (!queuedFiles.some(queuedFile => queuedFile.name === file.name)) {
+function queueUploadFiles(files, options = {}) {
+    const { openPopup = false } = options;
+    const newFiles = files.filter(file => file && file.size > 0);
+
+    newFiles.forEach(file => {
+        const alreadyQueued = queuedFiles.some(queuedFile =>
+            queuedFile.name === file.name &&
+            queuedFile.size === file.size &&
+            queuedFile.lastModified === file.lastModified
+        );
+
+        if (!alreadyQueued) {
             queuedFiles.push(file);
         }
     });
 
-    // Update file list preview
+    if (openPopup && newFiles.length > 0) {
+        openUploadPopup({ preserveQueue: true });
+    } else {
+        document.getElementById("targetDir").value = currentDir;
+    }
+
     updateFileListPreview();
-});
+    return newFiles.length;
+}
 
 function showProgressBar() {
     const progressBar = document.getElementById("uploadProgressBar");
@@ -1050,7 +1069,6 @@ async function uploadFileInChunks(file, targetDir) {
 
 document.getElementById("uploadForm").addEventListener("submit", async (event) => {
     event.preventDefault();
-    showProgressBar();
 
     const targetDir = document.getElementById("targetDir").value;
 
@@ -1059,6 +1077,8 @@ document.getElementById("uploadForm").addEventListener("submit", async (event) =
         openAlertPopup("No files selected for upload.");
         return;
     }
+
+    showProgressBar();
 
     try {
         // Upload each file in chunks
@@ -1091,23 +1111,99 @@ function handleDrop(event) {
     const dropZone = document.getElementById("dropZone");
     dropZone.classList.remove("dragover");
 
-    const files = Array.from(event.dataTransfer.files);
+    queueUploadFiles(Array.from(event.dataTransfer.files));
+}
 
-    // Append files to the queuedFiles array
-    files.forEach(file => {
-        if (!queuedFiles.some(queuedFile => queuedFile.name === file.name)) {
-            queuedFiles.push(file);
-        }
+function getFilesFromDataTransfer(dataTransfer, options = {}) {
+    const { imagesOnly = false } = options;
+    const files = Array.from(dataTransfer?.files || []);
+    if (!imagesOnly) return files;
+    return files.filter(file => file.type.startsWith("image/"));
+}
+
+function getClipboardImageFiles(event) {
+    const items = Array.from(event.clipboardData?.items || []);
+    return items
+        .filter(item => item.kind === "file" && item.type.startsWith("image/"))
+        .map(item => renameClipboardImageFile(item.getAsFile(), item.type))
+        .filter(Boolean);
+}
+
+function renameClipboardImageFile(file, mimeType) {
+    if (!file) return null;
+
+    const extensionByType = {
+        "image/jpeg": "jpg",
+        "image/png": "png",
+        "image/gif": "gif",
+        "image/webp": "webp",
+        "image/bmp": "bmp",
+        "image/svg+xml": "svg"
+    };
+    const ext = extensionByType[mimeType] || file.name.split(".").pop() || "png";
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const name = `pasted-image-${timestamp}.${ext}`;
+
+    return new File([file], name, {
+        type: file.type || mimeType,
+        lastModified: Date.now()
     });
+}
 
-    // Update the FormData used in the submission
-    const formData = new FormData(document.getElementById("uploadForm"));
-    queuedFiles.forEach(file => {
-        formData.append("file", file);
-    });
+function isEditablePasteTarget(target) {
+    return Boolean(target?.closest?.("input, textarea, [contenteditable='true']"));
+}
 
-    // Update the preview list
-    updateFileListPreview();
+function handlePagePaste(event) {
+    const imageFiles = getClipboardImageFiles(event);
+    if (imageFiles.length === 0) return;
+
+    event.preventDefault();
+    if (!isEditablePasteTarget(event.target)) {
+        event.stopPropagation();
+    }
+
+    queueUploadFiles(imageFiles, { openPopup: true });
+}
+
+function hasDraggedFiles(event) {
+    return Array.from(event.dataTransfer?.types || []).includes("Files");
+}
+
+function setPageDragActive(active) {
+    document.body.classList.toggle("page-drag-upload-active", active);
+}
+
+function handlePageDragEnter(event) {
+    if (!hasDraggedFiles(event)) return;
+    pageDragDepth += 1;
+    setPageDragActive(true);
+}
+
+function handlePageDragOver(event) {
+    if (!hasDraggedFiles(event)) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+}
+
+function handlePageDragLeave(event) {
+    if (!hasDraggedFiles(event)) return;
+    pageDragDepth = Math.max(0, pageDragDepth - 1);
+    if (pageDragDepth === 0) {
+        setPageDragActive(false);
+    }
+}
+
+function handlePageDrop(event) {
+    if (!hasDraggedFiles(event)) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    pageDragDepth = 0;
+    setPageDragActive(false);
+
+    const files = getFilesFromDataTransfer(event.dataTransfer);
+    queueUploadFiles(files, { openPopup: true });
 }
 
 function updateFileListPreview() {
@@ -1138,6 +1234,12 @@ document.getElementById("dropZone").addEventListener("drop", handleDrop);
 document.getElementById("dropZone").addEventListener("click", () => {
     document.getElementById("uploadFile").click();
 });
+
+document.addEventListener("paste", handlePagePaste);
+document.addEventListener("dragenter", handlePageDragEnter);
+document.addEventListener("dragover", handlePageDragOver);
+document.addEventListener("dragleave", handlePageDragLeave);
+document.addEventListener("drop", handlePageDrop);
 
 async function deleteItem(fileName) {
     openConfirmPopup(

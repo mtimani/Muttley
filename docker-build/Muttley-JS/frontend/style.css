@@ -57,6 +57,23 @@ html, body {
   transition: background var(--transition), color var(--transition);
 }
 
+body::after {
+  content: "";
+  position: fixed;
+  inset: 10px;
+  z-index: 900;
+  pointer-events: none;
+  border: 2px dashed transparent;
+  border-radius: var(--radius);
+  background: transparent;
+  transition: border-color var(--transition), background var(--transition);
+}
+
+body.page-drag-upload-active::after {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent-light) 72%, transparent);
+}
+
 /* ============================================================
    HEADER
    ============================================================ */

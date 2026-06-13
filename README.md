@@ -7,7 +7,9 @@ Muttley provides a robust solution for navigating, uploading, downloading, and m
 
 ## 🔔 Features
 - **Dynamic File Navigation**: Effortlessly navigate through directories with a clean and responsive UI.
-- **Upload and Download**: Drag-and-drop file uploads with progress feedback and easy file downloads, including support for downloading directories as ZIP archives.
+- **Upload and Download**: File uploads with progress feedback and easy file downloads, including support for downloading directories as ZIP archives.
+- **Paste Image Uploads**: Paste an image from your clipboard with `Ctrl+V` / `Cmd+V` on the main screen to open the upload popup with the image already queued.
+- **Drag-and-Drop Anywhere**: Drop files directly on the main screen to open the upload popup with the dropped files queued automatically. The upload popup still supports its own drag-and-drop area and click-to-browse selection.
 - **Bulk Download**: Select multiple files and folders and download them all at once as a single ZIP archive using the **Download Selected** button.
 - **Edit On-the-Fly**: Edit text files directly within the app using the built-in editor.
 - **PDF Preview**: Preview PDF files directly in an overlay popup without leaving the interface, using a built-in viewer with iframe rendering.
