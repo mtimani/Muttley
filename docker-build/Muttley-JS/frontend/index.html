@@ -60,6 +60,8 @@
             </div>
         </div>
 
+        <nav id="breadcrumbBar" class="breadcrumb-bar" aria-label="Current folder"></nav>
+
         <!-- List view -->
         <div class="table-container" id="listContainer">
             <table>
@@ -99,6 +101,7 @@
     </main>
 
     <div class="overlay" id="overlay"></div>
+    <div id="toastContainer" class="toast-container" aria-live="polite"></div>
 
     <!-- Upload Popup -->
     <div id="uploadPopup" class="popup">
@@ -119,6 +122,19 @@
                     <button type="submit" class="button"><i class="fa-solid fa-upload"></i> Upload</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- Upload Conflict Popup -->
+    <div id="uploadConflictPopup" class="popup">
+        <div class="popup-inner">
+            <h2><i class="fa-solid fa-triangle-exclamation" style="color:var(--accent);"></i> File Already Exists</h2>
+            <p id="uploadConflictMessage" style="font-size:.875rem;line-height:1.5;color:var(--text-muted);"></p>
+            <div class="popup-buttons">
+                <button type="button" class="button secondary" id="uploadConflictSkipBtn">Skip</button>
+                <button type="button" class="button secondary" id="uploadConflictKeepBtn">Keep Both</button>
+                <button type="button" class="button" id="uploadConflictReplaceBtn"><i class="fa-solid fa-arrows-rotate"></i> Replace</button>
+            </div>
         </div>
     </div>
 
@@ -237,8 +253,14 @@
         <div class="popup-inner">
             <button class="close" onclick="closeImagePreview()">×</button>
             <h2><i class="fa-solid fa-image"></i> Image Preview</h2>
-            <div style="text-align:center;">
+            <div class="image-preview-stage">
+                <button class="preview-nav-btn preview-prev" onclick="showAdjacentImage(-1)" title="Previous image">
+                    <i class="fa-solid fa-chevron-left"></i>
+                </button>
                 <img id="previewImg" src="" alt="Image preview">
+                <button class="preview-nav-btn preview-next" onclick="showAdjacentImage(1)" title="Next image">
+                    <i class="fa-solid fa-chevron-right"></i>
+                </button>
             </div>
             <div class="popup-buttons">
                 <button class="button" onclick="closeImagePreview()">Close</button>

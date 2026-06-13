@@ -4,12 +4,15 @@ let isSearchActive = false;
 let currentSearchResults = [];
 let currentItems = [];  // full item data cache for grid sorting
 let renameTarget = null;
+let baseDir = "";
 let currentView = localStorage.getItem('muttley-view') || 'list';
 let pageDragDepth = 0;
+let currentImagePreviewName = null;
+let uploadStatus = new Map();
 
 let sortState = {
-    column: null,
-    direction: 'asc'
+    column: localStorage.getItem('muttley-sort-column') || null,
+    direction: localStorage.getItem('muttley-sort-direction') || 'asc'
 };
 
 /* ============================================================
@@ -120,6 +123,71 @@ function escapeJs(str) {
     return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 }
 
+function showToast(message, type = "info") {
+    const container = document.getElementById("toastContainer");
+    if (!container) return;
+    const iconByType = {
+        success: "fa-circle-check",
+        error: "fa-circle-exclamation",
+        info: "fa-circle-info"
+    };
+    const toast = document.createElement("div");
+    toast.className = `toast ${type}`;
+    const icon = document.createElement("i");
+    icon.className = `fa-solid ${iconByType[type] || iconByType.info}`;
+    const text = document.createElement("span");
+    text.textContent = message;
+    toast.append(icon, text);
+    container.appendChild(toast);
+    setTimeout(() => toast.remove(), 5200);
+}
+
+function selectNameWithoutExtension(input) {
+    const value = input.value;
+    const dot = value.lastIndexOf(".");
+    const end = dot > 0 ? dot : value.length;
+    input.setSelectionRange(0, end);
+}
+
+function saveSortPreference() {
+    if (sortState.column && sortState.direction !== "unsorted") {
+        localStorage.setItem("muttley-sort-column", sortState.column);
+        localStorage.setItem("muttley-sort-direction", sortState.direction);
+    } else {
+        localStorage.removeItem("muttley-sort-column");
+        localStorage.removeItem("muttley-sort-direction");
+    }
+}
+
+function getVisibleItems() {
+    return isSearchActive ? currentSearchResults : currentItems;
+}
+
+function getExistingNames() {
+    return new Set(currentItems.map(item => item.name));
+}
+
+function getUniqueFileName(name, existingNames) {
+    if (!existingNames.has(name)) return name;
+    const dot = name.lastIndexOf(".");
+    const base = dot > 0 ? name.slice(0, dot) : name;
+    const ext = dot > 0 ? name.slice(dot) : "";
+    let index = 1;
+    let next = `${base} (${index})${ext}`;
+    while (existingNames.has(next)) {
+        index += 1;
+        next = `${base} (${index})${ext}`;
+    }
+    return next;
+}
+
+function copyFileWithName(file, name) {
+    return new File([file], name, {
+        type: file.type || "application/octet-stream",
+        lastModified: file.lastModified || Date.now()
+    });
+}
+
 function buildActionsHtml(item) {
     const jsName  = escapeJs(item.name);
     let btns = '';
@@ -211,6 +279,7 @@ function sortTable(column) {
     } else {
         sortState = { column, direction: 'asc' };
     }
+    saveSortPreference();
 
     if (sortState.direction === 'unsorted') {
         if (isSearchActive) renderSearchResults(currentSearchResults);
@@ -222,6 +291,8 @@ function sortTable(column) {
 
     const source = isSearchActive ? currentSearchResults : currentItems;
     const sorted = sortItemsData(source, column, sortState.direction);
+    if (isSearchActive) currentSearchResults = sorted;
+    currentItems = sorted;
 
     if (isSearchActive) {
         // update table rows only (grid already rendered via renderSearchResults)
@@ -361,11 +432,13 @@ function renderSearchResults(results) {
     const fileTable = document.getElementById("fileTable");
 
     if (results.length === 0) {
-        fileTable.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:32px;">No files or directories found.</td></tr>`;
+        renderEmptyState();
+        updateSelectAllCheckbox();
         return;
     }
 
-    fileTable.innerHTML = results.map(item => {
+    const sortedResults = applyCurrentSort(results);
+    fileTable.innerHTML = sortedResults.map(item => {
         const icon = getFileTypeIcon(item.name, item.is_dir);
         const nameCell = item.is_dir
             ? `${icon}<a href="#" onclick="event.stopPropagation();navigate('${escapeJs(item.name)}')" class="directory">${item.name}</a>`
@@ -381,8 +454,10 @@ function renderSearchResults(results) {
     }).join('');
 
     updateSelectAllCheckbox();
-    currentItems = results;
-    renderGridView(results);
+    currentItems = sortedResults;
+    renderGridView(sortedResults);
+    updateSortArrows(sortState.column);
+    updateGridSortUI(sortState.column);
 }
 
 async function initialize() {
@@ -393,6 +468,7 @@ async function initialize() {
         const response = await fetch("/config");
         const data = await response.json();
         currentDir = data.base_dir;
+        baseDir = data.base_dir;
         fetchFiles();
     } catch (error) {
         console.error("Error initializing:", error);
@@ -412,6 +488,30 @@ async function fetchFiles() {
     } catch (error) {
         console.error("Error fetching files:", error);
     }
+}
+
+function updateBreadcrumbs() {
+    const bar = document.getElementById("breadcrumbBar");
+    if (!bar || !baseDir) return;
+    const relative = currentDir.startsWith(baseDir)
+        ? currentDir.slice(baseDir.length).replace(/^[/\\]+/, "")
+        : "";
+    const parts = relative ? relative.split(/[\\/]+/).filter(Boolean) : [];
+    const crumbs = [`<button onclick="navigateToRoot()">Root</button>`];
+    let builtPath = baseDir;
+    parts.forEach((part, index) => {
+        builtPath += `/${part}`;
+        const escapedPath = escapeJs(builtPath);
+        const safePart = escapeAttr(part);
+        crumbs.push(`<span class="breadcrumb-separator"><i class="fa-solid fa-chevron-right"></i></span><button onclick="navigateToPath('${escapedPath}')" ${index === parts.length - 1 ? 'aria-current="page"' : ""}>${safePart}</button>`);
+    });
+    bar.innerHTML = crumbs.join("");
+}
+
+async function navigateToPath(path) {
+    currentDir = path;
+    isSearchActive = false;
+    await fetchFiles();
 }
 
 document.getElementById("overlay").addEventListener("click", (e) => {
@@ -461,9 +561,24 @@ function previewImage(fileName) {
 
     const imageUrl = `/serve_image?target_dir=${encodeURIComponent(currentDir)}&file_name=${encodeURIComponent(fileName)}`;
     img.src = imageUrl;
+    currentImagePreviewName = fileName;
 
     popup.style.display = "block";
     overlay.style.display = "block";
+}
+
+function getVisibleImages() {
+    return getVisibleItems()
+        .filter(item => !item.is_dir && isImageFile(item.name))
+        .map(item => item.name);
+}
+
+function showAdjacentImage(direction) {
+    const images = getVisibleImages();
+    if (images.length === 0 || !currentImagePreviewName) return;
+    const index = images.indexOf(currentImagePreviewName);
+    const nextIndex = (index + direction + images.length) % images.length;
+    previewImage(images[nextIndex]);
 }
 
 function closeImagePreview() {
@@ -474,6 +589,7 @@ function closeImagePreview() {
     popup.style.display = "none";
     overlay.style.display = "none";
     img.src = "";
+    currentImagePreviewName = null;
 }
 
 async function openEditor(fileName) {
@@ -527,7 +643,7 @@ async function saveFile() {
         if (!response.ok) {
             openAlertPopup("Error saving file: " + (await response.text()));
         } else {
-            openAlertPopup("File saved successfully!");
+            showToast("File saved.", "success");
             closeEditorPopup();
             fetchFiles(); // Refresh file list
         }
@@ -604,7 +720,10 @@ function updateSelectAllCheckbox() {
     const noneChecked = Array.from(checkboxes).every(checkbox => !checkbox.checked);
 
     // Update the "Select All" checkbox state
-    if (allChecked) {
+    if (checkboxes.length === 0) {
+        selectAllCheckbox.checked = false;
+        selectAllCheckbox.indeterminate = false;
+    } else if (allChecked) {
         selectAllCheckbox.checked = true;
         selectAllCheckbox.indeterminate = false;
     } else if (noneChecked) {
@@ -625,10 +744,45 @@ function rowClick(tr) {
     }
 }
 
-function renderFiles(items) {
-    currentItems = items;
+function applyCurrentSort(items) {
+    if (!sortState.column || sortState.direction === "unsorted") return items;
+    return sortItemsData(items, sortState.column, sortState.direction);
+}
+
+function renderEmptyState() {
     const fileTable = document.getElementById("fileTable");
-    fileTable.innerHTML = items.map(item => {
+    fileTable.innerHTML = `
+        <tr>
+            <td colspan="5">
+                <div class="empty-state">
+                    <div>No files or directories found.</div>
+                    <div class="empty-state-actions">
+                        <button class="button" onclick="openUploadPopup()"><i class="fa-solid fa-upload"></i> Upload</button>
+                        <button class="button secondary" onclick="openCreateDirPopup()"><i class="fa-solid fa-folder-plus"></i> New Folder</button>
+                    </div>
+                </div>
+            </td>
+        </tr>`;
+    document.getElementById("gridContainer").innerHTML = `
+        <div class="empty-state">
+            <div>No files or directories found.</div>
+            <div class="empty-state-actions">
+                <button class="button" onclick="openUploadPopup()"><i class="fa-solid fa-upload"></i> Upload</button>
+                <button class="button secondary" onclick="openCreateDirPopup()"><i class="fa-solid fa-folder-plus"></i> New Folder</button>
+            </div>
+        </div>`;
+}
+
+function renderFiles(items) {
+    currentItems = applyCurrentSort(items);
+    updateBreadcrumbs();
+    const fileTable = document.getElementById("fileTable");
+    if (currentItems.length === 0) {
+        renderEmptyState();
+        updateSelectAllCheckbox();
+        return;
+    }
+    fileTable.innerHTML = currentItems.map(item => {
         const icon = getFileTypeIcon(item.name, item.is_dir);
         const nameCell = item.is_dir
             ? `${icon}<a href="#" onclick="event.stopPropagation();navigate('${escapeJs(item.name)}')" class="directory">${item.name}</a>`
@@ -644,7 +798,9 @@ function renderFiles(items) {
     }).join('');
 
     updateSelectAllCheckbox();
-    renderGridView(items);
+    renderGridView(currentItems);
+    updateSortArrows(sortState.column);
+    updateGridSortUI(sortState.column);
 }
 
 function renderGridView(items) {
@@ -761,6 +917,7 @@ function closeUploadPopup() {
     document.getElementById("overlay").style.display = "none";
     document.getElementById("uploadForm").reset();
     queuedFiles = []; // Clear queue on close
+    uploadStatus.clear();
     updateFileListPreview(); // Clear preview list
 }
 
@@ -851,6 +1008,7 @@ document.getElementById("createDirForm").addEventListener("submit", async event 
         });
         closeCreateDirPopup();
         fetchFiles();
+        showToast("Folder created.", "success");
     } catch (error) {
     }
 });
@@ -902,7 +1060,7 @@ async function deleteSelected() {
                             if (!secondResponse.ok) {
                                 openAlertPopup("Error forcing deletion: " + secondData.error);
                             } else {
-                                openAlertPopup("All selected items (including non-empty directories) have been deleted.");
+                                showToast("Selected items deleted.", "success");
                             }
                             fetchFiles();
                         },
@@ -917,7 +1075,7 @@ async function deleteSelected() {
                     fetchFiles();
                 }
                 else {
-                    openAlertPopup("Selected items have been successfully deleted.");
+                    showToast("Selected items deleted.", "success");
                     fetchFiles();
                 }
 
@@ -999,6 +1157,7 @@ function queueUploadFiles(files, options = {}) {
 
         if (!alreadyQueued) {
             queuedFiles.push(file);
+            uploadStatus.set(file.name, "queued");
         }
     });
 
@@ -1066,6 +1225,60 @@ async function uploadFileInChunks(file, targetDir) {
     }
 }
 
+async function resolveUploadConflicts(files) {
+    const existingNames = getExistingNames();
+    const resolvedFiles = [];
+    for (const file of files) {
+        if (!existingNames.has(file.name)) {
+            existingNames.add(file.name);
+            resolvedFiles.push(file);
+            continue;
+        }
+
+        const choice = await openUploadConflictPopup(file.name);
+        if (choice === "replace") {
+            resolvedFiles.push(file);
+        } else if (choice === "keep") {
+            const uniqueName = getUniqueFileName(file.name, existingNames);
+            const renamedFile = copyFileWithName(file, uniqueName);
+            existingNames.add(uniqueName);
+            uploadStatus.set(uniqueName, uploadStatus.get(file.name) || "queued");
+            resolvedFiles.push(renamedFile);
+        } else {
+            uploadStatus.set(file.name, "skipped");
+        }
+    }
+    return resolvedFiles;
+}
+
+function openUploadConflictPopup(fileName) {
+    const popup = document.getElementById("uploadConflictPopup");
+    const message = document.getElementById("uploadConflictMessage");
+    const replaceBtn = document.getElementById("uploadConflictReplaceBtn");
+    const keepBtn = document.getElementById("uploadConflictKeepBtn");
+    const skipBtn = document.getElementById("uploadConflictSkipBtn");
+
+    message.textContent = `"${fileName}" already exists in this folder. Choose how Muttley should handle it.`;
+    popup.style.display = "block";
+    document.getElementById("overlay").style.display = "block";
+
+    return new Promise(resolve => {
+        const cleanup = choice => {
+            popup.style.display = "none";
+            replaceBtn.onclick = null;
+            keepBtn.onclick = null;
+            skipBtn.onclick = null;
+            if (document.getElementById("uploadPopup").style.display !== "block") {
+                document.getElementById("overlay").style.display = "none";
+            }
+            resolve(choice);
+        };
+        replaceBtn.onclick = () => cleanup("replace");
+        keepBtn.onclick = () => cleanup("keep");
+        skipBtn.onclick = () => cleanup("skip");
+    });
+}
+
 
 document.getElementById("uploadForm").addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -1081,14 +1294,26 @@ document.getElementById("uploadForm").addEventListener("submit", async (event) =
     showProgressBar();
 
     try {
+        const filesToUpload = await resolveUploadConflicts(queuedFiles);
+        if (filesToUpload.length === 0) {
+            showToast("Upload canceled.", "info");
+            return;
+        }
+        queuedFiles = filesToUpload;
+        updateFileListPreview();
+
         // Upload each file in chunks
-        for (const file of queuedFiles) {
+        for (const file of filesToUpload) {
+            uploadStatus.set(file.name, "uploading");
+            updateFileListPreview();
             await uploadFileInChunks(file, targetDir); // Use the new function
+            uploadStatus.set(file.name, "done");
+            updateFileListPreview();
         }
 
-        openAlertPopup("All files uploaded successfully!");
+        showToast("All files uploaded successfully.", "success");
     } catch (error) {
-        openAlertPopup("Error during file upload: " + error.message);
+        showToast("Error during file upload: " + error.message, "error");
     } finally {
         hideProgressBar();
         closeUploadPopup();
@@ -1217,11 +1442,13 @@ function updateFileListPreview() {
             <i class="fa-solid fa-file" style="color:var(--text-muted);flex-shrink:0;"></i>
             <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${file.name}</span>
             <span style="color:var(--text-muted);font-size:.72rem;flex-shrink:0;">${(file.size / 1024).toFixed(1)} KB</span>
+            <span class="upload-status ${(uploadStatus.get(file.name) || 'queued')}">${uploadStatus.get(file.name) || 'queued'}</span>
             <button type="button" class="remove-file-btn" onclick="removeQueuedFile(${idx})" title="Remove"><i class="fa-solid fa-xmark"></i></button>
         </li>`).join('');
 }
 
 function removeQueuedFile(idx) {
+    uploadStatus.delete(queuedFiles[idx]?.name);
     queuedFiles.splice(idx, 1);
     updateFileListPreview();
 }
@@ -1240,6 +1467,69 @@ document.addEventListener("dragenter", handlePageDragEnter);
 document.addEventListener("dragover", handlePageDragOver);
 document.addEventListener("dragleave", handlePageDragLeave);
 document.addEventListener("drop", handlePageDrop);
+document.addEventListener("keydown", handleKeyboardShortcuts);
+
+function isTypingTarget(target) {
+    return Boolean(target?.closest?.("input, textarea, [contenteditable='true']"));
+}
+
+function closeTopPopupOrClearSelection() {
+    const openPopups = ["uploadPopup", "createDirPopup", "confirmPopup", "alertPopup", "renamePopup", "sharePopup", "imagePreviewPopup", "pdfPreviewPopup"];
+    const open = openPopups.find(id => document.getElementById(id)?.style.display === "block");
+    if (open) {
+        ({
+            uploadPopup: closeUploadPopup,
+            createDirPopup: closeCreateDirPopup,
+            confirmPopup: closeConfirmPopup,
+            alertPopup: closeAlertPopup,
+            renamePopup: closeRenamePopup,
+            sharePopup: closeSharePopup,
+            imagePreviewPopup: closeImagePreview,
+            pdfPreviewPopup: closePdfPreview
+        })[open]();
+        return;
+    }
+    if (document.getElementById("editorPopup").classList.contains("is-open")) {
+        closeEditorPopup();
+        return;
+    }
+    document.querySelectorAll("tbody#fileTable input[type='checkbox'], .card-checkbox").forEach(cb => {
+        cb.checked = false;
+        cb.closest("tr, .grid-card")?.classList.remove("selected");
+    });
+    updateSelectAllCheckbox();
+}
+
+function handleKeyboardShortcuts(event) {
+    if (isTypingTarget(event.target)) return;
+    if (document.getElementById("imagePreviewPopup").style.display === "block" && event.key === "ArrowLeft") {
+        event.preventDefault();
+        showAdjacentImage(-1);
+        return;
+    }
+    if (document.getElementById("imagePreviewPopup").style.display === "block" && event.key === "ArrowRight") {
+        event.preventDefault();
+        showAdjacentImage(1);
+        return;
+    }
+    const key = event.key.toLowerCase();
+    if ((event.ctrlKey || event.metaKey) && key === "a") {
+        event.preventDefault();
+        const selectAll = document.getElementById("selectAllCheckbox");
+        selectAll.checked = true;
+        toggleSelectAll(selectAll);
+    } else if (event.key === "Delete") {
+        event.preventDefault();
+        deleteSelected();
+    } else if (event.key === "Escape") {
+        closeTopPopupOrClearSelection();
+    } else if (event.key === "/") {
+        event.preventDefault();
+        document.getElementById("searchInput").focus();
+    } else if (key === "r") {
+        refreshFiles();
+    }
+}
 
 async function deleteItem(fileName) {
     openConfirmPopup(
@@ -1278,7 +1568,7 @@ async function deleteItem(fileName) {
                             if (!forceResponse.ok) {
                                 openAlertPopup("Error forcing deletion: " + forceData.error);
                             } else {
-                                openAlertPopup(`"${fileName}" has been deleted (including its contents).`);
+                                showToast(`"${fileName}" deleted.`, "success");
                             }
                             fetchFiles();
                         },
@@ -1293,7 +1583,7 @@ async function deleteItem(fileName) {
                     fetchFiles();
                 }
                 else {
-                    openAlertPopup(`"${fileName}" has been successfully deleted.`);
+                    showToast(`"${fileName}" deleted.`, "success");
                     fetchFiles();
                 }
 
@@ -1348,11 +1638,73 @@ async function downloadItem(fileName) {
    ============================================================ */
 
 function openRenamePopup(name) {
-    renameTarget = name;
-    document.getElementById('renameInput').value = name;
-    document.getElementById('renamePopup').style.display = 'block';
-    document.getElementById('overlay').style.display = 'block';
-    setTimeout(() => document.getElementById('renameInput').select(), 50);
+    startInlineRename(name);
+}
+
+function getNameNodeForInlineRename(name) {
+    const tableCb = document.querySelector(`tbody#fileTable input[value="${CSS.escape(name)}"]`);
+    const row = tableCb?.closest("tr");
+    const rowNameNode = row?.querySelector(".filename, .directory");
+    if (rowNameNode) return rowNameNode;
+    const cardCb = document.querySelector(`.card-checkbox[value="${CSS.escape(name)}"]`);
+    return cardCb?.closest(".grid-card")?.querySelector(".card-name") || null;
+}
+
+function startInlineRename(name) {
+    const node = getNameNodeForInlineRename(name);
+    if (!node) {
+        renameTarget = name;
+        document.getElementById('renameInput').value = name;
+        document.getElementById('renamePopup').style.display = 'block';
+        document.getElementById('overlay').style.display = 'block';
+        setTimeout(() => selectNameWithoutExtension(document.getElementById('renameInput')), 50);
+        return;
+    }
+
+    const input = document.createElement("input");
+    input.className = "inline-rename-input";
+    input.value = name;
+    node.replaceWith(input);
+    input.focus();
+    selectNameWithoutExtension(input);
+
+    let submitted = false;
+    const submit = async () => {
+        if (submitted) return;
+        submitted = true;
+        const newName = input.value.trim();
+        if (!newName || newName === name) {
+            fetchFiles();
+            return;
+        }
+        await renameItem(name, newName);
+    };
+
+    input.addEventListener("keydown", event => {
+        if (event.key === "Enter") submit();
+        if (event.key === "Escape") {
+            submitted = true;
+            fetchFiles();
+        }
+    });
+    input.addEventListener("blur", submit);
+}
+
+async function renameItem(oldName, newName) {
+    try {
+        const resp = await fetch('/rename', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ target_dir: currentDir, old_name: oldName, new_name: newName })
+        });
+        const data = await resp.json();
+        if (!resp.ok) openAlertPopup('Error renaming: ' + data.error);
+        else showToast("Renamed.", "success");
+        fetchFiles();
+    } catch (err) {
+        openAlertPopup('Error: ' + err.message);
+        fetchFiles();
+    }
 }
 
 function closeRenamePopup() {
@@ -1366,14 +1718,8 @@ document.getElementById('renameForm').addEventListener('submit', async (e) => {
     const newName = document.getElementById('renameInput').value.trim();
     if (!newName || newName === renameTarget) { closeRenamePopup(); return; }
     try {
-        const resp = await fetch('/rename', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ target_dir: currentDir, old_name: renameTarget, new_name: newName })
-        });
-        const data = await resp.json();
-        if (!resp.ok) openAlertPopup('Error renaming: ' + data.error);
-        else { closeRenamePopup(); fetchFiles(); }
+        await renameItem(renameTarget, newName);
+        closeRenamePopup();
     } catch (err) {
         openAlertPopup('Error: ' + err.message);
     }
@@ -1412,11 +1758,11 @@ async function copyShareLink() {
     const input = document.getElementById('shareUrlInput');
     try {
         await navigator.clipboard.writeText(input.value);
-        openAlertPopup('Link copied to clipboard!');
+        showToast('Link copied to clipboard.', 'success');
     } catch {
         input.select();
         document.execCommand('copy');
-        openAlertPopup('Link copied!');
+        showToast('Link copied.', 'success');
     }
 }
 
