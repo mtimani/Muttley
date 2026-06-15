@@ -696,6 +696,13 @@ async function goBack() {
     }
 }
 
+function updateSelectionButtons() {
+    const anyChecked = document.querySelectorAll("tbody#fileTable input[type='checkbox']:checked").length > 0;
+    const display = anyChecked ? '' : 'none';
+    document.getElementById('downloadSelectedBtn').style.display = display;
+    document.getElementById('deleteSelectedBtn').style.display = display;
+}
+
 function toggleSelectAll(selectAllCheckbox) {
     const checkboxes = document.querySelectorAll("tbody#fileTable input[type='checkbox']");
     checkboxes.forEach(checkbox => {
@@ -709,6 +716,7 @@ function toggleSelectAll(selectAllCheckbox) {
         const card = cb.closest('.grid-card');
         if (card) card.classList.toggle('selected', selectAllCheckbox.checked);
     });
+    updateSelectionButtons();
 }
 
 // Ensure that when individual checkboxes are toggled, the "Select All" checkbox is updated
@@ -733,6 +741,7 @@ function updateSelectAllCheckbox() {
         selectAllCheckbox.checked = false;
         selectAllCheckbox.indeterminate = true; // Show indeterminate state
     }
+    updateSelectionButtons();
 }
 
 function rowClick(tr) {

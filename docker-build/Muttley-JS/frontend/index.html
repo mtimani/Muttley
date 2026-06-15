@@ -42,10 +42,10 @@
                 <button class="button" onclick="openUploadPopup()" title="Upload">
                     <i class="fa-solid fa-upload"></i><span class="btn-label"> Upload</span>
                 </button>
-                <button class="button" onclick="downloadSelected()" title="Download Selected">
+                <button id="downloadSelectedBtn" class="button" onclick="downloadSelected()" title="Download Selected" style="display:none">
                     <i class="fa-solid fa-download"></i><span class="btn-label"> Download Selected</span>
                 </button>
-                <button class="button danger" onclick="deleteSelected()" title="Delete Selected">
+                <button id="deleteSelectedBtn" class="button danger" onclick="deleteSelected()" title="Delete Selected" style="display:none">
                     <i class="fa-solid fa-trash"></i><span class="btn-label"> Delete Selected</span>
                 </button>
                 <button class="button" onclick="openCreateDirPopup()" title="New Folder">
