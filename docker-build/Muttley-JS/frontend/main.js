@@ -9,6 +9,7 @@ let currentView = localStorage.getItem('muttley-view') || 'list';
 let pageDragDepth = 0;
 let currentImagePreviewName = null;
 let uploadStatus = new Map();
+let authEnabled = false;
 
 let sortState = {
     column: localStorage.getItem('muttley-sort-column') || null,
@@ -141,6 +142,63 @@ function showToast(message, type = "info") {
     container.appendChild(toast);
     setTimeout(() => toast.remove(), 5200);
 }
+
+function showLoginView(message = "") {
+    document.getElementById("loginView").style.display = "grid";
+    document.getElementById("appShell").style.display = "none";
+    document.getElementById("appFooter").style.display = "none";
+    document.getElementById("refreshBtn").style.display = "none";
+    document.getElementById("viewToggle").style.display = "none";
+    document.getElementById("logoutBtn").style.display = "none";
+    document.getElementById("loginError").textContent = message;
+    setTimeout(() => document.getElementById("loginUsername")?.focus(), 50);
+}
+
+function showAppView() {
+    document.getElementById("loginView").style.display = "none";
+    document.getElementById("appShell").style.display = "";
+    document.getElementById("appFooter").style.display = "";
+    document.getElementById("refreshBtn").style.display = "";
+    document.getElementById("viewToggle").style.display = "";
+    document.getElementById("logoutBtn").style.display = authEnabled ? "" : "none";
+}
+
+async function handleAuthResponse(response) {
+    if (response.status !== 401) return false;
+    showLoginView("Please sign in to continue.");
+    return true;
+}
+
+async function login(username, password) {
+    const response = await fetch("/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password })
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || "Unable to sign in.");
+    showAppView();
+    await loadApp();
+}
+
+async function logout() {
+    await fetch("/auth/logout", { method: "POST" }).catch(() => {});
+    showLoginView();
+}
+
+document.getElementById("loginForm").addEventListener("submit", async event => {
+    event.preventDefault();
+    const username = document.getElementById("loginUsername").value.trim();
+    const password = document.getElementById("loginPassword").value;
+    const loginError = document.getElementById("loginError");
+    loginError.textContent = "";
+    try {
+        await login(username, password);
+        event.target.reset();
+    } catch (error) {
+        loginError.textContent = error.message;
+    }
+});
 
 function selectNameWithoutExtension(input) {
     const value = input.value;
@@ -463,7 +521,25 @@ async function initialize() {
     initView();
     document.getElementById('footer-year').textContent = new Date().getFullYear();
     try {
+        const statusResponse = await fetch("/auth/status");
+        const status = await statusResponse.json();
+        authEnabled = Boolean(status.authEnabled);
+        if (!status.authenticated) {
+            showLoginView();
+            return;
+        }
+        showAppView();
+        await loadApp();
+    } catch (error) {
+        console.error("Error checking authentication:", error);
+        showLoginView("Unable to check authentication.");
+    }
+}
+
+async function loadApp() {
+    try {
         const response = await fetch("/config");
+        if (await handleAuthResponse(response)) return;
         const data = await response.json();
         currentDir = data.base_dir;
         baseDir = data.base_dir;
@@ -481,6 +557,7 @@ async function fetchFiles() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ current_dir: currentDir })
         });
+        if (await handleAuthResponse(response)) return;
         const data = await response.json();
         renderFiles(data.items); // Render files
     } catch (error) {
@@ -1213,6 +1290,7 @@ async function uploadFileInChunks(file, targetDir) {
         formData.append("chunk_index", chunkIndex);
         formData.append("total_chunks", totalChunks);
         formData.append("original_filename", file.name);
+        formData.append("original_size", file.size);
         formData.append("target_dir", targetDir);
 
         try {

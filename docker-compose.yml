@@ -9,9 +9,25 @@ services:
       - "3000:3000"
     environment:
       - ENV=PRODUCTION
-      # Not required => Use only if BasicAuth needed
+      # Optional login:
+      # - Leave AUTH_USERNAME empty/commented to disable login entirely.
+      # - Set AUTH_USERNAME and leave AUTH_PASSWORD empty to auto-generate a strong password.
+      #   The generated password is printed in `docker compose up` logs and stored at:
+      #   ./data/.muttley-auth-password on the host (/data/.muttley-auth-password in the container).
+      # - Set both AUTH_USERNAME and AUTH_PASSWORD to use your own fixed credentials.
       - AUTH_USERNAME=admin
-      - AUTH_PASSWORD=supersecurepassword
+      - AUTH_PASSWORD=
+      # Optional upload limit. Leave empty or remove for no upload limit.
+      # Examples: 500mb, 2gb, 104857600
+      - MAX_UPLOAD_SIZE=
+      # Set to true only when Muttley is served behind HTTPS / a TLS reverse proxy.
+      - ENFORCE_HTTPS=false
+      # Enable when behind a reverse proxy so HTTPS and client IP detection work correctly.
+      - TRUST_PROXY=false
+      # Login protection
+      - LOGIN_RATE_LIMIT_WINDOW_MS=900000
+      - LOGIN_RATE_LIMIT_MAX=5
+      - LOGIN_BAN_MS=900000
     volumes:
       # Modify ./data by the directory you wish to share between your host and your container 
       # ./data is where all the data will be stored

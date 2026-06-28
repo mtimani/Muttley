@@ -29,11 +29,38 @@
                 <button class="btn-icon" onclick="toggleView()" id="viewToggle" title="Switch view">
                     <i class="fa-solid fa-grip" id="viewIcon"></i>
                 </button>
+                <button class="btn-icon" onclick="logout()" id="logoutBtn" title="Log out" style="display:none;">
+                    <i class="fa-solid fa-right-from-bracket"></i>
+                </button>
             </div>
         </div>
     </header>
 
-    <main>
+    <section id="loginView" class="login-view" style="display:none;">
+        <form id="loginForm" class="login-panel">
+            <div class="login-brand">
+                <img src="logo.webp" alt="Muttley Logo" class="login-logo">
+                <div class="login-title-group">
+                    <h1>Muttley</h1>
+                    <p>File Manager</p>
+                </div>
+            </div>
+            <div id="loginError" class="login-error" role="alert"></div>
+            <div class="form-group">
+                <label class="form-label" for="loginUsername">Username</label>
+                <input type="text" id="loginUsername" class="form-input" autocomplete="username" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="loginPassword">Password</label>
+                <input type="password" id="loginPassword" class="form-input" autocomplete="current-password" required>
+            </div>
+            <button type="submit" class="button login-submit">
+                <i class="fa-solid fa-right-to-bracket"></i> Sign in
+            </button>
+        </form>
+    </section>
+
+    <main id="appShell" style="display:none;">
         <div id="functionnality-container">
             <div id="standard-functionnality-container">
                 <button class="button go-back" onclick="goBack()" title="Go back">
@@ -268,7 +295,7 @@
         </div>
     </div>
 
-    <footer>
+    <footer id="appFooter" style="display:none;">
         <div class="footer-container">
             <p>Muttley &mdash; File Manager v2.0 &copy; <span id="footer-year"></span></p>
         </div>

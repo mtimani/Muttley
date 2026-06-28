@@ -27,7 +27,7 @@ Muttley provides a robust solution for navigating, uploading, downloading, and m
 - **Toast Notifications**: Non-blocking status messages keep confirmations visible without interrupting the workflow.
 - **Dark Mode**: Toggle between light and dark themes — preference is saved in `localStorage`.
 - **Streamlined Design**: A visually appealing layout with an integrated header featuring a clickable logo and title for easy navigation back to the root directory.
-- **Basic Authentication support**: Optional Basic Authentication ensures secure access by requiring a username and password. Easily configurable in the backend, it protects against unauthorized usage while maintaining flexibility for deployments without mandatory login.
+- **Optional Login**: Protect Muttley with a username and password. If `AUTH_USERNAME` is set but `AUTH_PASSWORD` is empty, Muttley generates a strong password, prints it in the startup logs, and stores it in the mounted data folder for future restarts.
 
 ## 📦 Technologies Used
 - **Easy deployment**: Docker and docker-compose.yml
@@ -41,10 +41,10 @@ Muttley provides a robust solution for navigating, uploading, downloading, and m
 wget -c https://raw.githubusercontent.com/mtimani/Muttley/refs/heads/main/ssl-automated-deployment/ssl-automated-deployment.sh
 chmod +x ssl-automated-deployment.sh
 
-# Install Muttley with Basic Auth
+# Install Muttley with login
 sudo ./ssl-automated-deployment.sh -d $DOMAIN_NAME -e $CERTBOT_EMAIL -b $BASIC_AUTH_USERNAME:$BASIC_AUTH_PASSWORD
 
-# Install Muttley without Basic Auth
+# Install Muttley without login
 sudo ./ssl-automated-deployment.sh -d $DOMAIN_NAME -e $CERTBOT_EMAIL
 ```
 
@@ -54,7 +54,7 @@ Usage: ./ssl-automated-setup.sh -d <domain_name> -e <certbot_email> [-b <auth_us
 
   -d <domain_name>       The domain name for SSL setup.
   -e <certbot_email>     The email for Certbot registration.
-  -b <username:password> Optional. Enables BasicAuth with specified username and password.
+  -b <username:password> Optional. Enables login with specified username and password.
   -h                     Display this help message.
 ```
 
@@ -65,23 +65,39 @@ wget -c https://raw.githubusercontent.com/mtimani/Muttley/refs/heads/main/docker
 docker compose up -d
 ```
 
+The provided `docker-compose.yml` enables login with `AUTH_USERNAME=admin` and an empty `AUTH_PASSWORD`.
+On first startup, Muttley generates a strong password, prints it in the `docker compose up` logs, and stores it at:
+
+- Host: `./data/.muttley-auth-password`
+- Container: `/data/.muttley-auth-password`
+
+The stored password is reused on restart. To disable login, remove or empty `AUTH_USERNAME`. To use your own password, set both `AUTH_USERNAME` and `AUTH_PASSWORD`.
+
 ### Standalone (Recommended for developpment and testing)
 #### Installation
 ```bash
 git clone https://github.com/mtimani/Muttley.git
 ```
 
-#### Usage (without Basic Authentication)
+#### Usage (without login)
 ```bash
 cd /docker-build/Muttley-JS/backend
 FILE_SERVER_ROOT="./data" npm start
 ```
 
-#### Usage (with Basic Authentication)
+#### Usage (with a fixed login password)
 ```bash
 cd /docker-build/Muttley-JS/backend
 AUTH_USERNAME=admin AUTH_PASSWORD=supersecurepassword FILE_SERVER_ROOT="./data" npm start
 ```
+
+#### Usage (with generated login password)
+```bash
+cd /docker-build/Muttley-JS/backend
+AUTH_USERNAME=admin FILE_SERVER_ROOT="./data" npm start
+```
+
+When `AUTH_USERNAME` is set and `AUTH_PASSWORD` is not set, Muttley generates a password, prints it in the startup logs, and stores it at `./data/.muttley-auth-password`.
 
 ## 📖 Why Muttley?
 Whether you’re a developer managing server files or a user looking for a simple local file explorer, Muttley is designed to make file management straightforward, efficient, and enjoyable.

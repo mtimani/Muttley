@@ -1,2 +1,6 @@
 # Ignore the data directory
 data/
+
+# Generated login password file
+.muttley-auth-password
+**/.muttley-auth-password
