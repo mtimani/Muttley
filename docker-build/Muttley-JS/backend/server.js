@@ -8,8 +8,16 @@ const crypto = require("crypto");
 
 const app = express();
 const BASE_DIR = path.resolve(process.env.FILE_SERVER_ROOT || "./data");
+const ZIP_RATE_LIMIT_WINDOW_MS = parseInt(process.env.ZIP_RATE_LIMIT_WINDOW_MS || "900000", 10);
+const ZIP_RATE_LIMIT_MAX = parseInt(process.env.ZIP_RATE_LIMIT_MAX || "20", 10);
+const SHARE_RATE_LIMIT_WINDOW_MS = parseInt(process.env.SHARE_RATE_LIMIT_WINDOW_MS || "900000", 10);
+const SHARE_RATE_LIMIT_MAX = parseInt(process.env.SHARE_RATE_LIMIT_MAX || "30", 10);
+const PUBLIC_SHARE_RATE_LIMIT_WINDOW_MS = parseInt(process.env.PUBLIC_SHARE_RATE_LIMIT_WINDOW_MS || "900000", 10);
+const PUBLIC_SHARE_RATE_LIMIT_MAX = parseInt(process.env.PUBLIC_SHARE_RATE_LIMIT_MAX || "60", 10);
 
 const shareTokens = new Map();
+const rateLimitBuckets = new Map();
+const SHARE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 // Cleanup expired tokens hourly
 setInterval(() => {
@@ -22,6 +30,10 @@ setInterval(() => {
 const FRONTEND_DIR = path.resolve(__dirname, "../frontend");
 app.use(express.static(FRONTEND_DIR));
 
+if (process.env.TRUST_PROXY) {
+    app.set("trust proxy", process.env.TRUST_PROXY === "true" ? 1 : process.env.TRUST_PROXY);
+}
+
 // Ensure the base directory exists
 if (!fs.existsSync(BASE_DIR)) {
     fs.mkdirSync(BASE_DIR, { recursive: true });
@@ -31,8 +43,68 @@ if (!fs.existsSync(BASE_DIR)) {
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+function createRateLimiter({ windowMs, max, label }) {
+    return (req, res, next) => {
+        const key = `${label}:${req.ip}`;
+        const now = Date.now();
+        const bucket = rateLimitBuckets.get(key);
+
+        if (!bucket || now > bucket.resetAt) {
+            rateLimitBuckets.set(key, { count: 1, resetAt: now + windowMs });
+            return next();
+        }
+
+        bucket.count += 1;
+        if (bucket.count > max) {
+            res.setHeader("Retry-After", Math.ceil((bucket.resetAt - now) / 1000));
+            return res.status(429).json({ error: "Too many requests. Please try again later." });
+        }
+
+        next();
+    };
+}
+
+setInterval(() => {
+    const now = Date.now();
+    for (const [key, bucket] of rateLimitBuckets.entries()) {
+        if (now > bucket.resetAt) rateLimitBuckets.delete(key);
+    }
+}, 60 * 1000);
+
+const zipRateLimit = createRateLimiter({
+    windowMs: ZIP_RATE_LIMIT_WINDOW_MS,
+    max: ZIP_RATE_LIMIT_MAX,
+    label: "zip",
+});
+
+const shareRateLimit = createRateLimiter({
+    windowMs: SHARE_RATE_LIMIT_WINDOW_MS,
+    max: SHARE_RATE_LIMIT_MAX,
+    label: "share",
+});
+
+const publicShareRateLimit = createRateLimiter({
+    windowMs: PUBLIC_SHARE_RATE_LIMIT_WINDOW_MS,
+    max: PUBLIC_SHARE_RATE_LIMIT_MAX,
+    label: "public-share",
+});
+
+function findActiveShareToken(filePath, isDirectory) {
+    const now = Date.now();
+    for (const [token, entry] of shareTokens.entries()) {
+        if (now > entry.expiresAt) {
+            shareTokens.delete(token);
+            continue;
+        }
+        if (entry.filePath === filePath && entry.isDirectory === isDirectory) {
+            return { token, entry };
+        }
+    }
+    return null;
+}
+
 // Public share download — must be before auth middleware
-app.get("/share/:token", (req, res) => {
+app.get("/share/:token", publicShareRateLimit, (req, res) => {
     const { token } = req.params;
     const entry = shareTokens.get(token);
     if (!entry) return res.status(404).send("Share link not found or expired.");
@@ -41,6 +113,9 @@ app.get("/share/:token", (req, res) => {
         return res.status(410).send("Share link has expired.");
     }
     if (!fs.existsSync(entry.filePath)) return res.status(404).send("File no longer exists.");
+    if (entry.isDirectory) {
+        return streamDirectoryZip(res, entry.filePath, entry.fileName);
+    }
     res.download(entry.filePath, entry.fileName);
 });
 
@@ -59,13 +134,55 @@ if (USERNAME && PASSWORD) {
     console.log("Authentication is disabled. Running without authentication.");
 }
 
+function isInsideBase(resolvedPath) {
+    const relative = path.relative(BASE_DIR, resolvedPath);
+    return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+}
+
 // Helper to validate and resolve safe paths
-function safePath(targetPath) {
-    const resolvedPath = path.resolve(BASE_DIR, targetPath);
-    if (!resolvedPath.startsWith(BASE_DIR)) {
+function safePath(targetPath = "") {
+    const resolvedPath = path.resolve(BASE_DIR, targetPath || "");
+    if (!isInsideBase(resolvedPath)) {
         throw new Error("Access outside the root directory is forbidden.");
     }
     return resolvedPath;
+}
+
+function safeName(name, label = "name") {
+    if (typeof name !== "string" || !name.trim()) {
+        throw new Error(`Invalid ${label}`);
+    }
+    if (name !== path.basename(name) || name.includes("/") || name.includes("\\") || name === "." || name === "..") {
+        throw new Error(`Invalid ${label}`);
+    }
+    return name;
+}
+
+function safeChildPath(parentDir, name, label = "name") {
+    const childPath = path.resolve(parentDir, safeName(name, label));
+    if (!isInsideBase(childPath) || path.dirname(childPath) !== parentDir) {
+        throw new Error("Access outside the root directory is forbidden.");
+    }
+    return childPath;
+}
+
+function streamDirectoryZip(res, dirPath, zipName) {
+    const archive = archiver("zip", { zlib: { level: 9 } });
+    res.attachment(zipName);
+    res.setHeader("Content-Type", "application/zip");
+
+    archive.on("error", (err) => {
+        console.error("Archive error:", err);
+        if (!res.headersSent) {
+            res.status(500).json({ error: "Error creating ZIP file" });
+        } else {
+            res.end();
+        }
+    });
+
+    archive.pipe(res);
+    archive.directory(dirPath, false);
+    archive.finalize();
 }
 
 // Format file size
@@ -92,7 +209,7 @@ app.post("/list", (req, res) => {
 
         if (action === "go_back") {
             currentDir = path.dirname(currentDir);
-            if (!currentDir.startsWith(BASE_DIR)) currentDir = BASE_DIR;
+            if (!isInsideBase(path.resolve(currentDir))) currentDir = BASE_DIR;
         }
 
         if (action === "go_root") currentDir = BASE_DIR;
@@ -135,13 +252,19 @@ app.post("/list", (req, res) => {
 const upload = multer({
     storage: multer.diskStorage({
         destination: (req, file, cb) => {
-            // Use the target directory from the request body or default to BASE_DIR
-            const safeDir = safePath(req.body.target_dir || BASE_DIR);
-            cb(null, safeDir);
+            try {
+                const safeDir = safePath(req.body.target_dir || BASE_DIR);
+                cb(null, safeDir);
+            } catch (err) {
+                cb(err);
+            }
         },
         filename: (req, file, cb) => {
-            // Save the file with a unique name to prevent overwriting
-            cb(null, `.${file.originalname}.part`);
+            try {
+                cb(null, `.${safeName(file.originalname, "file name")}.part`);
+            } catch (err) {
+                cb(err);
+            }
         },
     }),
 });
@@ -156,20 +279,21 @@ app.post("/upload", upload.single("file"), async (req, res) => {
             }
 
             const safeDir = safePath(target_dir);
-            const filePath = path.join(safeDir, file_name);
+            const filePath = safeChildPath(safeDir, file_name, "file name");
             fs.writeFileSync(filePath, content, "utf-8");
             return res.json({ message: "File updated successfully" });
         }
 
         const { target_dir, chunk_index, total_chunks, original_filename } = req.body;
         const safeDir = safePath(target_dir || BASE_DIR);
-        const tempFilePath = path.join(safeDir, `.${original_filename}.part`);
+        const safeOriginalName = safeName(original_filename, "file name");
+        const tempFilePath = safeChildPath(safeDir, `.${safeOriginalName}.part`, "temporary file name");
 
         fs.appendFileSync(tempFilePath, fs.readFileSync(req.file.path));
         fs.unlinkSync(req.file.path);
 
         if (parseInt(chunk_index) === parseInt(total_chunks) - 1) {
-            const finalFilePath = path.join(safeDir, original_filename);
+            const finalFilePath = safeChildPath(safeDir, safeOriginalName, "file name");
             fs.renameSync(tempFilePath, finalFilePath);
         }
 
@@ -190,13 +314,14 @@ app.post("/download", (req, res) => {
         }
 
         const safeDir = safePath(target_dir);
-        const filePath = path.join(safeDir, file_name);
+        const safeFileName = safeName(file_name, "file name");
+        const filePath = safeChildPath(safeDir, safeFileName, "file name");
 
         if (!fs.existsSync(filePath)) {
             return res.status(404).json({ error: "File not found" });
         }
 
-        res.download(filePath, file_name);
+        res.download(filePath, safeFileName);
     } catch (err) {
         console.error("Error downloading file:", err);
         res.status(400).json({ error: err.message });
@@ -204,7 +329,7 @@ app.post("/download", (req, res) => {
 });
 
 // POST /download_zip
-app.post("/download_zip", (req, res) => {
+app.post("/download_zip", zipRateLimit, (req, res) => {
     try {
         const { target_dir } = req.body;
 
@@ -218,22 +343,7 @@ app.post("/download_zip", (req, res) => {
             return res.status(400).json({ error: "Specified target is not a directory" });
         }
 
-        // Create a ZIP file in memory
-        const archive = archiver("zip", { zlib: { level: 9 } });
-        res.attachment(`${path.basename(safeTargetDir)}.zip`);
-        res.setHeader("Content-Type", "application/zip");
-
-        archive.on("error", (err) => {
-            console.error("Archive error:", err);
-            res.status(500).json({ error: "Error creating ZIP file" });
-        });
-
-        archive.pipe(res);
-
-        // Append files to the ZIP
-        archive.directory(safeTargetDir, false);
-
-        archive.finalize();
+        streamDirectoryZip(res, safeTargetDir, `${path.basename(safeTargetDir)}.zip`);
     } catch (err) {
         console.error("Error creating ZIP for directory:", err);
         res.status(400).json({ error: err.message });
@@ -241,7 +351,7 @@ app.post("/download_zip", (req, res) => {
 });
 
 // POST /download_selected_zip
-app.post("/download_selected_zip", (req, res) => {
+app.post("/download_selected_zip", zipRateLimit, (req, res) => {
     try {
         const { target_dir, items } = req.body;
 
@@ -263,13 +373,13 @@ app.post("/download_selected_zip", (req, res) => {
         archive.pipe(res);
 
         for (const item of items) {
-            const safeName = path.basename(item);
-            const itemPath = path.join(safeTargetDir, safeName);
+            const itemName = safeName(item, "item name");
+            const itemPath = safeChildPath(safeTargetDir, itemName, "item name");
             if (!fs.existsSync(itemPath)) continue;
             if (fs.lstatSync(itemPath).isDirectory()) {
-                archive.directory(itemPath, safeName);
+                archive.directory(itemPath, itemName);
             } else {
-                archive.file(itemPath, { name: safeName });
+                archive.file(itemPath, { name: itemName });
             }
         }
 
@@ -292,7 +402,8 @@ app.post("/delete", async (req, res) => {
 
         // 1) Verify all items
         for (const item of items) {
-            const itemPath = path.join(safeTargetDir, path.basename(item));
+            const itemName = safeName(item, "item name");
+            const itemPath = safeChildPath(safeTargetDir, itemName, "item name");
             if (!fs.existsSync(itemPath)) {
                 return res.status(404).json({ error: `Item ${item} not found` });
             }
@@ -315,7 +426,8 @@ app.post("/delete", async (req, res) => {
 
         // 3) Delete items
         for (const item of items) {
-            const itemPath = path.join(safeTargetDir, path.basename(item));
+            const itemName = safeName(item, "item name");
+            const itemPath = safeChildPath(safeTargetDir, itemName, "item name");
 
             if (fs.lstatSync(itemPath).isDirectory()) {
                 // Directory
@@ -344,12 +456,9 @@ app.post("/create_dir", (req, res) => {
     try {
         const { target_dir = BASE_DIR, dirname } = req.body;
 
-        if (!dirname || dirname.includes("/") || dirname.includes("\\")) {
-            return res.status(400).json({ error: "Invalid directory name" });
-        }
-
         const safeDir = safePath(target_dir);
-        const dirPath = path.join(safeDir, dirname);
+        const dirName = safeName(dirname, "directory name");
+        const dirPath = safeChildPath(safeDir, dirName, "directory name");
 
         if (fs.existsSync(dirPath)) {
             return res.status(400).json({ error: "Directory already exists" });
@@ -459,7 +568,8 @@ app.get("/serve_pdf", (req, res) => {
         }
 
         const safeDir = safePath(target_dir);
-        const filePath = path.join(safeDir, file_name);
+        const safeFileName = safeName(file_name, "file name");
+        const filePath = safeChildPath(safeDir, safeFileName, "file name");
 
         if (!fs.existsSync(filePath)) {
             return res.status(404).send("File not found");
@@ -482,13 +592,14 @@ app.get("/serve_image", (req, res) => {
         }
 
         const safeDir = safePath(target_dir);
-        const filePath = path.join(safeDir, file_name);
+        const safeFileName = safeName(file_name, "file name");
+        const filePath = safeChildPath(safeDir, safeFileName, "file name");
 
         if (!fs.existsSync(filePath)) {
             return res.status(404).send("File not found");
         }
 
-        const ext = path.extname(file_name).toLowerCase();
+        const ext = path.extname(safeFileName).toLowerCase();
         const mimeTypes = {
             ".png": "image/png",
             ".jpg": "image/jpeg",
@@ -514,11 +625,11 @@ app.post("/rename", (req, res) => {
         const { target_dir, old_name, new_name } = req.body;
         if (!old_name || !new_name)
             return res.status(400).json({ error: "old_name and new_name are required" });
-        if (new_name.includes("/") || new_name.includes("\\"))
-            return res.status(400).json({ error: "Invalid name" });
         const safeDir = safePath(target_dir || BASE_DIR);
-        const oldPath = path.join(safeDir, path.basename(old_name));
-        const newPath = path.join(safeDir, path.basename(new_name));
+        const oldName = safeName(old_name, "old name");
+        const newName = safeName(new_name, "new name");
+        const oldPath = safeChildPath(safeDir, oldName, "old name");
+        const newPath = safeChildPath(safeDir, newName, "new name");
         if (!fs.existsSync(oldPath)) return res.status(404).json({ error: "Item not found" });
         if (fs.existsSync(newPath)) return res.status(400).json({ error: "An item with that name already exists" });
         fs.renameSync(oldPath, newPath);
@@ -530,24 +641,38 @@ app.post("/rename", (req, res) => {
 });
 
 // POST /share — generate share token (requires auth if auth is enabled)
-app.post("/share", (req, res) => {
+app.post("/share", shareRateLimit, (req, res) => {
     try {
         const { target_dir, file_name } = req.body;
         if (!target_dir || !file_name)
             return res.status(400).json({ error: "Missing params" });
         const safeDir = safePath(target_dir);
-        const filePath = path.join(safeDir, path.basename(file_name));
+        const safeFileName = safeName(file_name, "file name");
+        const filePath = safeChildPath(safeDir, safeFileName, "file name");
         if (!fs.existsSync(filePath)) return res.status(404).json({ error: "File not found" });
-        if (fs.lstatSync(filePath).isDirectory())
-            return res.status(400).json({ error: "Cannot share a directory" });
+        const isDirectory = fs.lstatSync(filePath).isDirectory();
+        const existingShare = findActiveShareToken(filePath, isDirectory);
+        const expiresAt = Date.now() + SHARE_TTL_MS;
+        const fileName = isDirectory ? `${path.basename(filePath)}.zip` : safeFileName;
+
+        if (existingShare) {
+            existingShare.entry.expiresAt = expiresAt;
+            existingShare.entry.fileName = fileName;
+            return res.json({ token: existingShare.token, expiresAt });
+        }
+
         const token = crypto.randomBytes(32).toString("hex");
-        const expiresAt = Date.now() + 7 * 24 * 60 * 60 * 1000;
-        shareTokens.set(token, { filePath, fileName: file_name, expiresAt });
+        shareTokens.set(token, { filePath, fileName, isDirectory, expiresAt });
         res.json({ token, expiresAt });
     } catch (err) {
         console.error("Error creating share:", err);
         res.status(400).json({ error: err.message });
     }
+});
+
+app.use((err, req, res, next) => {
+    console.error("Request error:", err);
+    res.status(400).json({ error: err.message || "Invalid request" });
 });
 
 // Start server

@@ -21,7 +21,7 @@ Muttley provides a robust solution for navigating, uploading, downloading, and m
 - **Keyboard Shortcuts**: Use shortcuts for common actions like select all, delete selected items, close popups, focus search, refresh, and browse image previews.
 - **Manual Refresh**: Instantly re-sync the file list with the server using the **Refresh** button in the header — no page reload, state and open editors are preserved.
 - **Inline Rename**: Rename files and folders directly from the file list or grid view. Filename text is selected without the extension by default.
-- **Share Links**: Generate a secure, time-limited download link for any file. Links are valid for **7 days**, require no login to use, and work automatically in any deployment (local, Docker, or production) thanks to `window.location.origin`-based URL generation. Share links are stored in memory and cleaned up automatically on expiry.
+- **Share Links**: Generate a secure, time-limited download link for any file or folder. Folder share links download the folder as a ZIP archive, matching the standard folder download behavior. Links are valid for **7 days**, require no login to use, and work automatically in any deployment (local, Docker, or production) thanks to `window.location.origin`-based URL generation. Share links are stored in memory and cleaned up automatically on expiry.
 - **List & Grid Views**: Switch between a compact list view and a large icon grid view (with image thumbnails) using the toggle in the header.
 - **Remembered Preferences**: Theme, view mode, and sort preference are saved in `localStorage`.
 - **Toast Notifications**: Non-blocking status messages keep confirmations visible without interrupting the workflow.

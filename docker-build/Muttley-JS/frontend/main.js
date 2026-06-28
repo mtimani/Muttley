@@ -198,8 +198,7 @@ function buildActionsHtml(item) {
     if (!item.is_dir && item.name.toLowerCase().endsWith('.txt'))
         btns += `<button class="btn-action" title="Edit" onclick="event.stopPropagation();openEditor('${jsName}')"><i class="fa-solid fa-pencil"></i></button>`;
     btns += `<button class="btn-action" title="Rename" onclick="event.stopPropagation();openRenamePopup('${jsName}')"><i class="fa-solid fa-i-cursor"></i></button>`;
-    if (!item.is_dir)
-        btns += `<button class="btn-action" title="Share" onclick="event.stopPropagation();shareItem('${jsName}')"><i class="fa-solid fa-share-nodes"></i></button>`;
+    btns += `<button class="btn-action" title="Share" onclick="event.stopPropagation();shareItem('${jsName}',${item.is_dir})"><i class="fa-solid fa-share-nodes"></i></button>`;
     if (item.is_dir) {
         const dirPath = escapeJs(`${currentDir}/${item.name}`);
         btns += `<button class="btn-action" title="Download" onclick="event.stopPropagation();downloadDirectoryAsZip('${dirPath}')"><i class="fa-solid fa-download"></i></button>`;
@@ -220,8 +219,7 @@ function buildMoreMenuWrapper(item) {
     if (!item.is_dir && item.name.toLowerCase().endsWith('.txt'))
         items += `<button onclick="closeAllMoreMenus();openEditor('${jsName}')"><i class="fa-solid fa-pencil"></i> Edit</button>`;
     items += `<button onclick="closeAllMoreMenus();openRenamePopup('${jsName}')"><i class="fa-solid fa-i-cursor"></i> Rename</button>`;
-    if (!item.is_dir)
-        items += `<button onclick="closeAllMoreMenus();shareItem('${jsName}')"><i class="fa-solid fa-share-nodes"></i> Share</button>`;
+    items += `<button onclick="closeAllMoreMenus();shareItem('${jsName}',${item.is_dir})"><i class="fa-solid fa-share-nodes"></i> Share</button>`;
     if (item.is_dir) {
         const dirPath = escapeJs(`${currentDir}/${item.name}`);
         items += `<button onclick="closeAllMoreMenus();downloadDirectoryAsZip('${dirPath}')"><i class="fa-solid fa-download"></i> Download</button>`;
@@ -836,8 +834,7 @@ function renderGridView(items) {
         if (!item.is_dir && item.name.toLowerCase().endsWith('.txt'))
             cardBtns += `<button class="btn-action" title="Edit" onclick="event.stopPropagation();openEditor('${jsName}')"><i class="fa-solid fa-pencil"></i></button>`;
         cardBtns += `<button class="btn-action" title="Rename" onclick="event.stopPropagation();openRenamePopup('${jsName}')"><i class="fa-solid fa-i-cursor"></i></button>`;
-        if (!item.is_dir)
-            cardBtns += `<button class="btn-action" title="Share" onclick="event.stopPropagation();shareItem('${jsName}')"><i class="fa-solid fa-share-nodes"></i></button>`;
+        cardBtns += `<button class="btn-action" title="Share" onclick="event.stopPropagation();shareItem('${jsName}',${item.is_dir})"><i class="fa-solid fa-share-nodes"></i></button>`;
         if (item.is_dir) {
             cardBtns += `<button class="btn-action" title="Download" onclick="event.stopPropagation();downloadDirectoryAsZip('${escapeJs(currentDir + '/' + item.name)}')"><i class="fa-solid fa-download"></i></button>`;
         } else {
@@ -1737,12 +1734,12 @@ document.getElementById('renameForm').addEventListener('submit', async (e) => {
 /* ============================================================
    SHARE
    ============================================================ */
-async function shareItem(fileName) {
+async function shareItem(fileName, isDirectory = false) {
     try {
         const resp = await fetch('/share', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ target_dir: currentDir, file_name: fileName })
+            body: JSON.stringify({ target_dir: currentDir, file_name: fileName, is_directory: isDirectory })
         });
         const data = await resp.json();
         if (!resp.ok) { openAlertPopup('Error creating share link: ' + data.error); return; }
