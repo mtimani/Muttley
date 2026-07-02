@@ -878,6 +878,8 @@ app.get("/serve_pdf", (req, res) => {
         safeLstatSync(filePath);
 
         res.setHeader("Content-Type", "application/pdf");
+        res.setHeader("X-Frame-Options", "SAMEORIGIN");
+        res.setHeader("Content-Security-Policy", "frame-ancestors 'self'");
         res.sendFile(filePath);
     } catch (err) {
         console.error("Error serving PDF:", err);
